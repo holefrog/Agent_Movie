@@ -1,0 +1,5 @@
+# Ansible Inventory for Translator Pilot Local Deployment
+
+[local_thinkpad]
+# Deploying directly to the local computer running the playbook (no SSH required)
+localhost ansible_connection=local

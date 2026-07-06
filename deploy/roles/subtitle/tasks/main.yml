@@ -1,0 +1,43 @@
+---
+- name: Ensure deployment directory exists
+  file:
+    path: "{{ deploy_dir }}"
+    state: directory
+    owner: "{{ deploy_user }}"
+    mode: "0755"
+
+- name: Copy application files
+  copy:
+    src: "{{ role_path }}/files/"
+    dest: "{{ deploy_dir }}/"
+    owner: "{{ deploy_user }}"
+    mode: "0644"
+
+- name: Make python scripts executable
+  file:
+    path: "{{ deploy_dir }}/{{ item }}"
+    mode: "0755"
+  loop:
+    - app.py
+    - subtitle.py
+    - scanner.py
+    - scan_sound_track.py
+    - run.sh
+
+- name: Generate settings.toml configuration
+  template:
+    src: settings.toml.j2
+    dest: "{{ deploy_dir }}/settings.toml"
+    owner: "{{ deploy_user }}"
+    mode: "0600"
+
+- name: Create Python venv
+  command: python3 -m venv {{ deploy_dir }}/venv
+  args:
+    creates: "{{ deploy_dir }}/venv/bin/python"
+
+- name: Install Python dependencies into venv
+  pip:
+    requirements: "{{ deploy_dir }}/requirements.txt"
+    virtualenv: "{{ deploy_dir }}/venv"
+    state: present

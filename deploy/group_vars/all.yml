@@ -1,0 +1,30 @@
+---
+# Agent_Movie Ansible 变量
+
+# --- 部署目标 ---
+deploy_user: david
+deploy_dir: /home/david/Programs/Agent_Movie
+
+# --- 扫描路径 ---
+media_paths:
+  - /home/david/NAS_NFS/Media/Video/Movie/
+
+# --- 翻译 Provider 选择 ---
+translate_provider: mistral    # gemini / openai / mistral / groq / nvidia
+
+# --- 翻译通用参数 ---
+translate_timeout: 60
+translate_batch_size: 50
+translate_temperature: 0.3
+
+
+# --- Web ---
+web_host: "0.0.0.0"
+web_port: 8899
+
+# --- 模型选择 ---
+gemini_translate_model: gemini-2.5-flash
+openai_translate_model: gpt-4o-mini
+mistral_translate_model: mistral-large-latest
+groq_translate_model: llama-3.3-70b-versatile
+nvidia_translate_model: meta/llama-3.3-70b-instruct
