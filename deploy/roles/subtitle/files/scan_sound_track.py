@@ -272,11 +272,27 @@ def build_language_nfo_for_video(video_path: Path, api_key: str) -> dict:
         
     result = {"audio_tracks": [], "subtitle_tracks": []}
     
-    # 分析字幕流
+    # 检查是否已经有存档，避免重新做耗时的音轨识别
+    nfo_path = video_path.parent / "sound_track.json"
+    existing_audio_tracks = None
+    if nfo_path.exists():
+        try:
+            with open(nfo_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if "audio_tracks" in data:
+                existing_audio_tracks = data["audio_tracks"]
+        except Exception as e:
+            logger.warning(f"读取现有 sound_track.json 失败, 将重新分析: {e}")
+            
+    # 分析字幕流 (这是新加的极速逻辑，不耗时)
     subtitle_streams = get_subtitle_streams(video_path)
     result["subtitle_tracks"] = subtitle_streams
     
-    for idx in stream_indices:
+    if existing_audio_tracks is not None:
+        logger.info(f"直接复用已有的音频分析结果: {video_path.name}")
+        result["audio_tracks"] = existing_audio_tracks
+    else:
+        for idx in stream_indices:
         if stt_status.get("should_stop", False):
             logger.info("检测到中止信号，放弃分析剩余音轨")
             break
