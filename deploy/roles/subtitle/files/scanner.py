@@ -5,8 +5,32 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 import logging
 import re
+import os
+import toml
 
 logger = logging.getLogger(__name__)
+
+def _load_settings() -> dict:
+    settings_path = Path(__file__).parent / "settings.toml"
+    if not settings_path.exists():
+        settings_path = Path(os.path.expanduser("~/Programs/Agent_Movie/settings.toml"))
+    if not settings_path.exists():
+        return {}
+    return toml.load(settings_path)
+
+_settings = _load_settings()
+if "scanner" not in _settings:
+    raise ValueError("settings.toml 中缺少 [scanner] 配置块")
+_scanner_config = _settings["scanner"]
+
+if "video_exts" not in _scanner_config:
+    raise ValueError("settings.toml 中 scanner 块缺少 video_exts 配置")
+if "sub_exts" not in _scanner_config:
+    raise ValueError("settings.toml 中 scanner 块缺少 sub_exts 配置")
+
+# 视频和字幕扩展名，由 settings.toml 动态配置
+_VIDEO_EXTS = set(_scanner_config["video_exts"])
+_SUB_EXTS = set(_scanner_config["sub_exts"])
 
 # --- 简繁体检测用的特征字 ---
 # 只出现在简体中的常用字
@@ -29,8 +53,6 @@ _CHINESE_LANG_KEYWORDS = {
 # 中文字幕文件名中常见的语言标识
 _CHINESE_SUB_TAGS = {".zh.", ".zh-cn.", ".zh-tw.", ".chi.", ".chs.", ".cht.", ".chinese."}
 
-# 视频文件扩展名
-_VIDEO_EXTS = {".mp4", ".mkv", ".avi", ".wmv", ".flv", ".mov", ".ts"}
 
 
 def detect_subtitle_language(filepath: Path) -> str:
@@ -290,7 +312,7 @@ def scan_directory(media_path: str) -> list[dict]:
 
         # 找到该目录下所有字幕文件
         sub_files = [f for f in directory.iterdir()
-                     if f.is_file() and f.suffix.lower() in (".srt", ".ass", ".ssa")]
+                     if f.is_file() and f.suffix.lower() in _SUB_EXTS]
 
         chinese_subs = []
         english_subs = []

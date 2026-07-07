@@ -9,6 +9,22 @@ deploy_dir: /home/david/Programs/Agent_Movie
 media_paths:
   - /home/david/NAS_NFS/Media/Video/Movie/
 
+# --- 媒体扩展名 ---
+video_exts:
+  - ".mp4"
+  - ".mkv"
+  - ".avi"
+  - ".wmv"
+  - ".flv"
+  - ".mov"
+  - ".ts"
+  - ".rmvb"
+
+sub_exts:
+  - ".srt"
+  - ".ass"
+  - ".ssa"
+
 # --- 翻译 Provider 选择 ---
 translate_provider: mistral    # gemini / openai / mistral / groq / nvidia
 

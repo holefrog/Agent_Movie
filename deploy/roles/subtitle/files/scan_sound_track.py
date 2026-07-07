@@ -263,7 +263,9 @@ def load_settings() -> dict:
     return toml.load(settings_path)
 
 def scan_all_movies(api_key: str, media_paths: list[str]):
-    _VIDEO_EXTS = {".mp4", ".mkv", ".avi", ".wmv", ".flv", ".mov", ".ts", ".rmvb"}
+    settings = load_settings()
+    scanner_config = settings.get("scanner", {})
+    _VIDEO_EXTS = set(scanner_config.get("video_exts", [".mp4", ".mkv", ".avi", ".wmv", ".flv", ".mov", ".ts", ".rmvb"]))
     
     global stt_status
     stt_status["is_running"] = True

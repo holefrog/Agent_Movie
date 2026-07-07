@@ -5,6 +5,8 @@ translate = "{{ translate_provider | mandatory }}"
 
 [scanner]
 media_paths = {{ media_paths | mandatory | to_json }}
+video_exts = {{ video_exts | mandatory | to_json }}
+sub_exts = {{ sub_exts | mandatory | to_json }}
 
 [opensubtitles]
 api_key = "{{ opensubtitles_api_key | mandatory }}"
