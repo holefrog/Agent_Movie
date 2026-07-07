@@ -158,11 +158,11 @@ def normalize_subtitle_encoding_to_utf8(filepath: Path) -> None:
         logger.warning(f"字幕编码统一转换失败 {filepath}: {e}")
 
 
-def rename_subtitle(filepath: Path, detected_lang: str) -> Path:
+def rename_subtitle(filepath: Path, detected_lang: str, base_stem: str = None) -> Path:
     """
     根据检测到的语言强制重命名文件。
-    会先剥离已有的其他语言标签，再附加正确的标签。
-    例如: movie.en.srt → movie.zh-CN.srt
+    如果提供了 base_stem (即主视频的名称)，则直接使用主视频名称拼接后缀，这是最标准的命名法。
+    例如: Taxi (1998) 720p.mkv -> Taxi (1998) 720p.zh-CN.srt
     """
     if detected_lang not in ("zh-CN", "zh-TW", "en"):
         return filepath
@@ -171,20 +171,13 @@ def rename_subtitle(filepath: Path, detected_lang: str) -> Path:
     name_lower = filepath.name.lower()
     suffix_lower = filepath.suffix.lower()
 
-    # 如果已经完全符合标准命名，直接返回
+    # 如果已经完全符合标准命名，且我们不强制改前缀，或者前缀已经和视频一致
     if name_lower.endswith(target_tag.lower() + suffix_lower):
-        return filepath
+        if base_stem is None or filepath.stem.lower() == (base_stem + target_tag).lower():
+            return filepath
 
-    clean_stem = filepath.stem
-    # 尽可能剥离尾部存在的旧语言标签
-    tags_to_strip = [".zh-cn", ".zh-tw", ".zh", ".chi", ".chs", ".cht", ".chinese", 
-                     ".en.hi", ".en", ".eng", ".sdh", ".fr", ".da", ".de", ".es", ".it", 
-                     ".ja", ".ko", ".pt", ".ru"]
-    
-    for tag in tags_to_strip:
-        if clean_stem.lower().endswith(tag):
-            clean_stem = clean_stem[:-len(tag)]
-            break
+    # 优先使用视频的主名称作为前缀，摒弃猜测和剥离旧后缀的复杂逻辑
+    clean_stem = base_stem if base_stem else filepath.stem
 
     new_name = clean_stem + target_tag + filepath.suffix
     new_path = filepath.parent / new_name
@@ -385,6 +378,14 @@ def normalize_subtitles(media_path: str) -> dict:
             continue
             
         directory = nfo_path.parent
+        video_files = [f for f in directory.iterdir()
+                       if f.is_file() and f.suffix.lower() in _VIDEO_EXTS]
+        
+        main_video_stem = None
+        if video_files:
+            main_video = max(video_files, key=lambda f: f.stat().st_size)
+            main_video_stem = main_video.stem
+            
         sub_files = [f for f in directory.iterdir()
                      if f.is_file() and f.suffix.lower() in _SUB_EXTS]
                      
@@ -399,7 +400,11 @@ def normalize_subtitles(media_path: str) -> dict:
                 
             name_lower = sub.name.lower()
             if any(tag in name_lower for tag in [".zh-cn.", ".zh-tw.", ".zh.", ".en.", ".eng."]):
-                continue # 已经合规
+                # 即使标签合规，如果不跟视频同名，也应该纠正（如果能拿到视频名）
+                if main_video_stem and not sub.name.startswith(main_video_stem):
+                    pass # 继续往下走去重命名
+                else:
+                    continue # 完全合规
                 
             # 执行重命名
             detected = detect_subtitle_language(sub)
@@ -407,7 +412,7 @@ def normalize_subtitles(media_path: str) -> dict:
                 normalize_subtitle_encoding_to_utf8(sub)
                 
             try:
-                new_path = rename_subtitle(sub, detected)
+                new_path = rename_subtitle(sub, detected, base_stem=main_video_stem)
                 if new_path.name != sub.name:
                     renamed_count += 1
             except FileExistsError as e:
