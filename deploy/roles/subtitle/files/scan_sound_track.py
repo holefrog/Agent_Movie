@@ -293,17 +293,17 @@ def build_language_nfo_for_video(video_path: Path, api_key: str) -> dict:
         result["audio_tracks"] = existing_audio_tracks
     else:
         for idx in stream_indices:
-        if stt_status.get("should_stop", False):
-            logger.info("检测到中止信号，放弃分析剩余音轨")
-            break
-            
-        logger.info(f"正在分析音轨 {idx}...")
-        lang = analyze_track_language(video_path, idx, duration, api_key)
-        if lang == "unknown":
-            raise Exception(f"无法识别音轨 {idx} 的语言 (可能为纯无声或不支持的格式)。根据配置，已报错并退出。")
-            
-        result["audio_tracks"].append({"index": idx, "lang": lang})
-        logger.info(f"音轨 {idx} 分析完成 -> {lang}")
+            if stt_status.get("should_stop", False):
+                logger.info("检测到中止信号，放弃分析剩余音轨")
+                break
+                
+            logger.info(f"正在分析音轨 {idx}...")
+            lang = analyze_track_language(video_path, idx, duration, api_key)
+            if lang == "unknown":
+                raise Exception(f"无法识别音轨 {idx} 的语言 (可能为纯无声或不支持的格式)。根据配置，已报错并退出。")
+                
+            result["audio_tracks"].append({"index": idx, "lang": lang})
+            logger.info(f"音轨 {idx} 分析完成 -> {lang}")
         
     # 保存结果
     nfo_path = video_path.parent / "sound_track.json"
