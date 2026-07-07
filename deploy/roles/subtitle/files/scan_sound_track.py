@@ -362,9 +362,9 @@ def scan_all_movies(api_key: str, media_paths: list[str]):
 def main():
     try:
         settings = load_settings()
-        api_key = settings.get("translate", {}).get("groq", {}).get("api_key", "")
+        api_key = settings["translate"]["groq"]["api_key"]
         if not api_key:
-            logger.error("未在 settings.toml 中找到 Groq API Key")
+            logger.error("Groq API Key 为空")
             sys.exit(1)
             
         if len(sys.argv) > 1:
@@ -376,7 +376,7 @@ def main():
                 scan_all_movies(api_key, [str(target_path)])
         else:
             # 扫描所有配置的路径
-            media_paths = settings.get("scanner", {}).get("media_paths", [])
+            media_paths = settings["scanner"]["media_paths"]
             scan_all_movies(api_key, media_paths)
     except KeyboardInterrupt:
         logger.info("用户中断")
