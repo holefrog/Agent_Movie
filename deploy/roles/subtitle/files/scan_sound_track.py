@@ -100,6 +100,46 @@ def get_audio_stream_indices(video_path: Path) -> list[int]:
         logger.warning(f"无法获取音频流索引 {video_path.name}: {e}")
     return []
 
+def get_subtitle_streams(video_path: Path) -> list[dict]:
+    cmd = [
+        "ffprobe", "-v", "error",
+        "-select_streams", "s",
+        "-show_entries", "stream=index,codec_name:stream_tags=language,title",
+        "-of", "json",
+        str(video_path)
+    ]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        if res.returncode == 0:
+            data = json.loads(res.stdout)
+            streams = []
+            for stream in data.get("streams", []):
+                if "index" not in stream:
+                    continue
+                index = stream["index"]
+                codec = stream.get("codec_name", "")
+                tags = stream.get("tags", {})
+                lang = tags.get("language", "")
+                title = tags.get("title", "")
+                
+                # 判断是否为中文字幕
+                is_chinese = False
+                if lang.lower() in ("zh", "chi", "zho"):
+                    is_chinese = True
+                elif any(keyword in title.lower() for keyword in ("zh", "中", "简", "繁", "chi")):
+                    is_chinese = True
+                
+                streams.append({
+                    "index": index,
+                    "codec": codec,
+                    "lang": "zh" if is_chinese else lang,
+                    "title": title
+                })
+            return streams
+    except Exception as e:
+        logger.warning(f"无法获取字幕流 {video_path.name}: {e}")
+    return []
+
 def extract_audio_segment(video_path: Path, stream_idx: int, start_time: float, output_path: Path) -> bool:
     # 截取 15 秒音频
     cmd = [
@@ -228,9 +268,14 @@ def build_language_nfo_for_video(video_path: Path, api_key: str) -> dict:
     
     if not stream_indices:
         logger.warning(f"未找到音频流: {video_path.name}")
-        return {"audio_tracks": []}
+        return {"audio_tracks": [], "subtitle_tracks": []}
         
-    result = {"audio_tracks": []}
+    result = {"audio_tracks": [], "subtitle_tracks": []}
+    
+    # 分析字幕流
+    subtitle_streams = get_subtitle_streams(video_path)
+    result["subtitle_tracks"] = subtitle_streams
+    
     for idx in stream_indices:
         if stt_status.get("should_stop", False):
             logger.info("检测到中止信号，放弃分析剩余音轨")
