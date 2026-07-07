@@ -192,8 +192,16 @@ def detect_language_via_groq(audio_path: Path, api_key: str) -> str:
     try:
         resp_json = with_retry(_do_request, retry_config, label="Groq STT")
         text = resp_json.get("text", "").strip()
-        if len(text) < 2:
+        
+        # 过滤过短的文本和常见的 Whisper 幻觉 (纯音乐或静音时)
+        if len(text) < 5:
             return "unknown"
+            
+        lower_text = text.lower()
+        hallucinations = ["thank you", "thanks for watching", "oh, my god", "subscribe", "amara.org", "¶"]
+        if any(h in lower_text for h in hallucinations):
+            return "unknown"
+            
         return resp_json.get("language", "unknown").lower()
     except Exception as e:
         logger.error(f"Groq API 请求彻底失败: {e}")
@@ -248,14 +256,11 @@ def analyze_track_language(video_path: Path, stream_idx: int, duration: float, a
             lang = "en"
         lang_counts[lang] = lang_counts.get(lang, 0) + 1
 
-    # 如果中文被识别到至少一次（哪怕是有中英混杂），也可以偏向于它是中文发音，
-    # 或者严格采用多数表决。这里采用：只要 zh >= 2，或者 (zh == 1 且没有其它语言>=2) 就认为是 zh
+    # 如果中文被识别到至少一次，我们就偏向于它是中文发音（因为极少会在纯外文电影里幻觉出长句中文）
+    # 相比之下，中文电影里静音部分极容易幻觉出英语 (如 Oh my god)
     zh_count = lang_counts.get("zh", 0)
-    en_count = lang_counts.get("en", 0)
-
-    if zh_count >= 2:
-        return "zh"
-    elif zh_count == 1 and en_count < 2:
+    
+    if zh_count >= 1:
         return "zh"
     
     # 否则取最高票

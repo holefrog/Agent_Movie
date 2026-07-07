@@ -9,7 +9,7 @@ from pathlib import Path
 from flask import Flask, render_template, request, jsonify
 
 from scanner import get_all_movies
-from subtitle import get_chinese_subtitle
+from subtitle import get_missing_subtitle
 
 # 日志配置
 logging.basicConfig(
@@ -81,13 +81,11 @@ def _index_content():
         # 统计含有脏字幕的【电影数】，而不是总文件数
         dirty_subs_movie_count = sum(1 for m in all_movies if m.get("dirty_subs_count", 0) > 0)
 
-        # 只保留确实需要且可以翻译中文字幕的电影（排除中文语音）
-        # 强制要求：如果 is_chinese_audio 是 None（未生成 nfo），它不应该出现在翻译列表里
+        # 只要满足不含中文字幕，就全部作为“需处理影片”列出
         movies = [
             m for m in all_movies 
             if not m["has_external_chinese_sub"] 
             and not m["has_internal_chinese_sub"] 
-            and m["is_chinese_audio"] is False
         ]
         
         return render_template("index.html", movies=movies, missing_nfo_count=missing_nfo_count, dirty_subs_count=dirty_subs_movie_count)
@@ -102,17 +100,7 @@ def submit():
     config = load_config()
     os_config = config["opensubtitles"]
 
-    # 构造翻译配置
-    provider_name = config["provider"]["translate"]
-    common_config = config["translate"]["common"]
-    provider_config = config["translate"][provider_name]
-
-    translate_config = {
-        "provider": provider_name,
-        **common_config,
-        **provider_config,
-    }
-
+    # 无需构建 translate_config，纯下载模式
     selected = request.json.get("selected", [])
     if not selected:
         return jsonify({"error": "未选择任何影片"}), 400
@@ -126,7 +114,8 @@ def submit():
     results = []
     for i, movie in enumerate(to_process):
         logger.info(f"处理 {i + 1}/{len(to_process)}: {movie['title']}")
-        result = get_chinese_subtitle(movie, os_config, translate_config)
+        from subtitle import get_missing_subtitle
+        result = get_missing_subtitle(movie, os_config)
         results.append({
             "title": movie["title"],
             "year": movie["year"],

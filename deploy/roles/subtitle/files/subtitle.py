@@ -16,9 +16,9 @@ logger = logging.getLogger(__name__)
 # 第一条路：从 OpenSubtitles 下载
 # ============================================================
 
-def download_chinese_sub(movie: dict, os_config: dict) -> str | None:
+def download_subtitle(movie: dict, os_config: dict, lang_code: str, save_ext: str) -> str | None:
     """
-    从 OpenSubtitles 下载中文字幕。
+    从 OpenSubtitles 下载指定语言的字幕。
     成功返回保存的文件路径，失败返回 None。
     """
     api_key = os_config["api_key"]
@@ -47,17 +47,17 @@ def download_chinese_sub(movie: dict, os_config: dict) -> str | None:
             ost.login(username, password)
 
         imdb_num = imdb_id.replace("tt", "")
-        results = ost.search(imdb_id=imdb_num, languages="zh-cn,zh-tw")
+        results = ost.search(imdb_id=imdb_num, languages=lang_code)
 
         if not results or not results.data:
-            logger.info(f"OpenSubtitles 未找到中文字幕: {movie['title']}")
+            logger.info(f"OpenSubtitles 未找到字幕 ({lang_code}): {movie['title']}")
             return None
 
         best = results.data[0]
         sub_content = ost.download_and_parse(best)
 
         video_path = Path(movie["video_path"])
-        save_name = video_path.stem + ".chi.srt"
+        save_name = video_path.stem + save_ext
         save_path = video_path.parent / save_name
 
         save_path.write_text(sub_content, encoding="utf-8")
@@ -287,21 +287,19 @@ def translate_subtitle(movie: dict, translate_config: dict) -> str | None:
     return str(save_path)
 
 
-def get_chinese_subtitle(movie: dict, os_config: dict, translate_config: dict) -> dict:
+def get_missing_subtitle(movie: dict, os_config: dict) -> dict:
     """
-    获取中文字幕的统一入口。先下载，失败则翻译。
+    获取字幕的统一入口。优先下载中文，失败则下载英文。不直接翻译。
     返回: {"success": bool, "method": str, "path": str, "error": str}
     """
-    # 第一步：尝试从 OpenSubtitles 下载
-    result = download_chinese_sub(movie, os_config)
+    # 第一步：尝试从 OpenSubtitles 下载中文字幕
+    result = download_subtitle(movie, os_config, "zh-cn,zh-tw", ".zh-CN.srt")
     if result:
-        return {"success": True, "method": "download", "path": result, "error": ""}
+        return {"success": True, "method": "download_zh", "path": result, "error": ""}
 
-    # 第二步：尝试 LLM 翻译
-    if movie.get("has_english_sub"):
-        result = translate_subtitle(movie, translate_config)
-        if result:
-            return {"success": True, "method": "translate", "path": result, "error": ""}
-        return {"success": False, "method": "translate", "path": "", "error": "翻译失败"}
+    # 第二步：尝试下载英文字幕
+    result = download_subtitle(movie, os_config, "en", ".en.srt")
+    if result:
+        return {"success": True, "method": "download_en", "path": result, "error": ""}
 
-    return {"success": False, "method": "none", "path": "", "error": "无英文字幕可翻译，下载也失败"}
+    return {"success": False, "method": "none", "path": "", "error": "中英文字幕均未找到"}

@@ -138,9 +138,7 @@
     </table>
 
     <div class="actions">
-      <button class="btn btn-primary" id="submitBtn" onclick="submitSelected()" disabled>
-        提交
-      </button>
+        <button id="submitBtn" class="btn btn-primary" onclick="submitSelected()" disabled>下载字幕 (首选中文，次选英文)</button>
       <button class="btn btn-secondary" onclick="cancelAll()">取消</button>
       <span class="selected-count" id="selectedCount">已选 0 部</span>
     </div>
@@ -244,11 +242,11 @@
           div.className = 'result-item';
           if (r.success) {
             okCount++;
-            const methodText = r.method === 'download' ? '下载' : '翻译';
+            const methodText = r.method === 'download_zh' ? '下载中文' : (r.method === 'download_en' ? '下载英文' : '未知');
             div.innerHTML = `<span class="result-ok">✅ ${r.title} (${r.year}) - ${methodText}成功</span>`;
           } else {
             failCount++;
-            div.innerHTML = `<span class="result-fail">❌ ${r.title} (${r.year}) - ${r.error}</span>`;
+            div.innerHTML = `<span class="result-fail">❌ ${r.title} (${r.year}) - 失败: ${r.error}</span>`;
           }
           resultsDiv.appendChild(div);
         });
