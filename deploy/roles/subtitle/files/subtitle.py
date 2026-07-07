@@ -101,7 +101,7 @@ def download_subtitle(movie: dict, os_config: dict, lang_code: str, save_ext: st
 
         def _download():
             time.sleep(1.5)
-            return ost.download_and_parse(best)
+            return ost.download(best)
             
         retry_config = {"max_retries": 3, "base_delay": 2.0, "backoff_factor": 1.5, "max_delay": 15.0}
         sub_content = with_retry(_download, retry_config, label="OST Download")
@@ -110,11 +110,13 @@ def download_subtitle(movie: dict, os_config: dict, lang_code: str, save_ext: st
         save_name = video_path.stem + save_ext
         save_path = video_path.parent / save_name
 
-        if isinstance(sub_content, list):
-            srt_text = _build_srt(sub_content)
-            save_path.write_text(srt_text, encoding="utf-8")
+        if isinstance(sub_content, bytes):
+            save_path.write_bytes(sub_content)
+        elif isinstance(sub_content, str):
+            save_path.write_text(sub_content, encoding="utf-8")
         else:
-            save_path.write_text(str(sub_content), encoding="utf-8")
+            logger.error(f"不支持的字幕返回类型: {type(sub_content)}")
+            return None
             
         logger.info(f"下载成功: {save_path}")
         return str(save_path)
@@ -351,6 +353,9 @@ def get_missing_subtitle(movie: dict, os_config: dict) -> dict:
     result = download_subtitle(movie, os_config, "zh-cn,zh-tw", ".zh-CN.srt")
     if result:
         return {"success": True, "method": "download_zh", "path": result, "error": ""}
+
+    if movie.get("has_english_sub"):
+        return {"success": False, "method": "none", "path": "", "error": "无中字，但本地已有英字，跳过下载"}
 
     # 第二步：尝试下载英文字幕
     result = download_subtitle(movie, os_config, "en", ".en.srt")
