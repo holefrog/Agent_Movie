@@ -272,7 +272,35 @@ def scan_directory(media_path: str) -> list[dict]:
 
         # 提取主视频（选最大的视频文件作为主片）
         main_video = max(video_files, key=lambda f: f.stat().st_size)
-        is_chinese_audio = _is_chinese_audio(directory, main_video)
+        
+        is_chinese_audio = None
+        has_internal_chinese_sub = False
+        
+        sound_track_file = directory / "sound_track.json"
+        if sound_track_file.exists():
+            try:
+                with open(sound_track_file, "rb") as f:
+                    data = json.load(f)
+                    
+                # 兼容老数据：如果没有 subtitle_tracks 字段，强制视为未扫描完，重新触发体检
+                if "subtitle_tracks" not in data:
+                    is_chinese_audio = None
+                else:
+                    # 判断是否有中文语音
+                    for track in data.get("audio_tracks", []):
+                        if track.get("lang") == "zh":
+                            is_chinese_audio = True
+                            break
+                    if is_chinese_audio is None:
+                        is_chinese_audio = False
+                        
+                    # 判断是否有内置中文字幕
+                    for sub_track in data.get("subtitle_tracks", []):
+                        if sub_track.get("lang") == "zh":
+                            has_internal_chinese_sub = True
+                            break
+            except Exception as e:
+                logger.warning(f"读取 sound_track.json 失败 {sound_track_file}: {e}")
 
         if is_chinese_audio is None:
             # 未建库，跳过耗时的字幕读取、重命名等，直接存入拦截队列
@@ -282,7 +310,8 @@ def scan_directory(media_path: str) -> list[dict]:
                 "imdb_id": nfo_info["imdb_id"],
                 "languages": nfo_info["languages"],
                 "is_chinese_audio": None,
-                "has_chinese_sub": False,
+                "has_external_chinese_sub": False,
+                "has_internal_chinese_sub": False,
                 "has_english_sub": False,
                 "english_sub_path": "",
                 "video_path": str(main_video),

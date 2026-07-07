@@ -83,7 +83,12 @@ def _index_content():
 
         # 只保留确实需要且可以翻译中文字幕的电影（排除中文语音）
         # 强制要求：如果 is_chinese_audio 是 None（未生成 nfo），它不应该出现在翻译列表里
-        movies = [m for m in all_movies if not m["has_chinese_sub"] and m["is_chinese_audio"] is False]
+        movies = [
+            m for m in all_movies 
+            if not m["has_external_chinese_sub"] 
+            and not m["has_internal_chinese_sub"] 
+            and m["is_chinese_audio"] is False
+        ]
         
         return render_template("index.html", movies=movies, missing_nfo_count=missing_nfo_count, dirty_subs_count=dirty_subs_movie_count)
     except Exception as e:

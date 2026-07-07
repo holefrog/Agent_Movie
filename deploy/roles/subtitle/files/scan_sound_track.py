@@ -352,8 +352,14 @@ def scan_all_movies(api_key: str, media_paths: list[str]):
                 
             nfo_path = movie_dir / "sound_track.json"
             if nfo_path.exists():
-                stt_status["already_processed_count"] += 1
-                continue
+                try:
+                    with open(nfo_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    if "subtitle_tracks" in data:
+                        stt_status["already_processed_count"] += 1
+                        continue
+                except Exception:
+                    pass
             
             movies_to_process.append((movie_dir, max(video_files, key=lambda f: f.stat().st_size)))
             
