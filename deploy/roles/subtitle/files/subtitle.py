@@ -16,17 +16,56 @@ logger = logging.getLogger(__name__)
 # 第一条路：从 OpenSubtitles 下载
 # ============================================================
 
+_ost_client = None
+
+def get_ost_client(os_config: dict):
+    global _ost_client
+    if _ost_client is not None:
+        return _ost_client
+
+    api_key = os_config.get("api_key")
+    username = os_config.get("username")
+    password = os_config.get("password")
+
+    if not api_key:
+        return None
+
+    try:
+        from opensubtitlescom import OpenSubtitles
+    except ImportError:
+        logger.error("opensubtitlescom 未安装")
+        sys.exit(1)
+
+    _ost_client = OpenSubtitles("AgentMovie/1.0", api_key)
+
+    if username and password:
+        def _login():
+            time.sleep(1.5)  # Avoid 1 req/sec rate limit
+            _ost_client.login(username, password)
+
+        retry_config = {
+            "max_retries": 5,
+            "base_delay": 2.0,
+            "backoff_factor": 2.0,
+            "max_delay": 30.0
+        }
+        try:
+            with_retry(_login, retry_config, label="OST Login")
+        except Exception as e:
+            logger.error(f"OpenSubtitles 登录彻底失败: {e}")
+            _ost_client = None
+            return None
+
+    return _ost_client
+
 def download_subtitle(movie: dict, os_config: dict, lang_code: str, save_ext: str) -> str | None:
     """
     从 OpenSubtitles 下载指定语言的字幕。
     成功返回保存的文件路径，失败返回 None。
     """
-    api_key = os_config["api_key"]
-    username = os_config["username"]
-    password = os_config["password"]
-
-    if not api_key:
-        logger.info("OpenSubtitles 未配置 API Key (值为空)，跳过下载")
+    ost = get_ost_client(os_config)
+    if not ost:
+        logger.info("OpenSubtitles 客户端未初始化，跳过下载")
         return None
 
     imdb_id = movie.get("imdb_id", "")
@@ -35,32 +74,48 @@ def download_subtitle(movie: dict, os_config: dict, lang_code: str, save_ext: st
         return None
 
     try:
-        from opensubtitlescom import OpenSubtitles
-    except ImportError:
-        logger.error("opensubtitlescom 未安装，请运行: pip install opensubtitlescom")
-        sys.exit(1)
-
-    try:
-        ost = OpenSubtitles("AgentMovie/1.0", api_key)
-
-        if username and password:
-            ost.login(username, password)
-
         imdb_num = imdb_id.replace("tt", "")
-        results = ost.search(imdb_id=imdb_num, languages=lang_code)
+        
+        # 处理带有逗号的语种列表，如 zh-cn,zh-tw
+        langs = re.split(r'[,|;]+', lang_code)
+        best = None
+        for lang in langs:
+            lang = lang.strip()
+            if not lang:
+                continue
+            
+            def _search():
+                time.sleep(1.5)
+                return ost.search(imdb_id=imdb_num, languages=lang)
+                
+            retry_config = {"max_retries": 3, "base_delay": 2.0, "backoff_factor": 1.5, "max_delay": 15.0}
+            results = with_retry(_search, retry_config, label=f"OST Search {lang}")
+            
+            if results and results.data:
+                best = results.data[0]
+                break
 
-        if not results or not results.data:
+        if not best:
             logger.info(f"OpenSubtitles 未找到字幕 ({lang_code}): {movie['title']}")
             return None
 
-        best = results.data[0]
-        sub_content = ost.download_and_parse(best)
+        def _download():
+            time.sleep(1.5)
+            return ost.download_and_parse(best)
+            
+        retry_config = {"max_retries": 3, "base_delay": 2.0, "backoff_factor": 1.5, "max_delay": 15.0}
+        sub_content = with_retry(_download, retry_config, label="OST Download")
 
         video_path = Path(movie["video_path"])
         save_name = video_path.stem + save_ext
         save_path = video_path.parent / save_name
 
-        save_path.write_text(sub_content, encoding="utf-8")
+        if isinstance(sub_content, list):
+            srt_text = _build_srt(sub_content)
+            save_path.write_text(srt_text, encoding="utf-8")
+        else:
+            save_path.write_text(str(sub_content), encoding="utf-8")
+            
         logger.info(f"下载成功: {save_path}")
         return str(save_path)
 
