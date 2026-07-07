@@ -43,7 +43,7 @@ def get_all_processed_movies(media_paths: list[str]) -> dict:
             if movie_dir in processed_dirs:
                 continue
                 
-            video_files = [f for f in movie_dir.iterdir() if f.is_file() and f.suffix.lower() in {".mp4", ".mkv", ".avi", ".rmvb"}]
+            video_files = [f for f in movie_dir.iterdir() if f.is_file() and f.suffix.lower() in {".mp4", ".mkv", ".avi", ".wmv", ".flv", ".mov", ".ts", ".rmvb"}]
             if not video_files:
                 continue
                 
@@ -263,7 +263,7 @@ def load_settings() -> dict:
     return toml.load(settings_path)
 
 def scan_all_movies(api_key: str, media_paths: list[str]):
-    _VIDEO_EXTS = {".mp4", ".mkv", ".avi", ".rmvb"}
+    _VIDEO_EXTS = {".mp4", ".mkv", ".avi", ".wmv", ".flv", ".mov", ".ts", ".rmvb"}
     
     global stt_status
     stt_status["is_running"] = True
