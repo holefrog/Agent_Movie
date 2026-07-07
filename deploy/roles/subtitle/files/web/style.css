@@ -85,21 +85,12 @@ td {
   vertical-align: middle;
 }
 
-/* 灰色行 - 中文语音影片 */
-tr.disabled {
-  opacity: 0.5;
-  background: #f8fafc;
-}
-
-tr.disabled td { color: #a0aec0; }
-
+/* 灰色行 - 中文语音影片 (目前不再把整行变灰，只 disable checkbox) */
 td.title-cell {
   font-weight: 500;
   color: #2d3748;
   max-width: 400px;
 }
-
-tr.disabled td.title-cell { color: #a0aec0; }
 
 .tag {
   display: inline-block;
