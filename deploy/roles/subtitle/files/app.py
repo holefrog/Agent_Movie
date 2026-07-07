@@ -218,9 +218,11 @@ if __name__ == "__main__":
     url_host = "127.0.0.1" if host == "0.0.0.0" else host
     url = f"http://{url_host}:{port}"
 
-    # 仅在实际的 worker 进程中打开浏览器，避免 debug 模式的 reloader 导致重复打开
+    # 因为 app.run 中启用了 debug，Flask 会启动两个进程（主进程+重载进程）
+    # 必须在判断之前明确设置 app.debug，否则主进程会误以为 debug=False 从而多开一个 tab
+    app.debug = True
     if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
         threading.Timer(1.5, lambda: webbrowser.open(url)).start()
 
     logger.info(f"启动 Web 服务: {url}")
-    app.run(host=host, port=port, debug=True)
+    app.run(host=host, port=port)
