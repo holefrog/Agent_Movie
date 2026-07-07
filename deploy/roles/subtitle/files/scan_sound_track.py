@@ -264,8 +264,14 @@ def load_settings() -> dict:
 
 def scan_all_movies(api_key: str, media_paths: list[str]):
     settings = load_settings()
-    scanner_config = settings.get("scanner", {})
-    _VIDEO_EXTS = set(scanner_config.get("video_exts", [".mp4", ".mkv", ".avi", ".wmv", ".flv", ".mov", ".ts", ".rmvb"]))
+    if "scanner" not in settings:
+        raise ValueError("settings.toml 中缺少 [scanner] 配置块")
+    
+    scanner_config = settings["scanner"]
+    if "video_exts" not in scanner_config:
+        raise ValueError("settings.toml 中 scanner 块缺少 video_exts 配置")
+        
+    _VIDEO_EXTS = set(scanner_config["video_exts"])
     
     global stt_status
     stt_status["is_running"] = True
