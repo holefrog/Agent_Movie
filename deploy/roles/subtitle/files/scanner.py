@@ -2,6 +2,7 @@
 scanner.py - 扫描媒体库目录，解析 NFO，检测并重命名字幕文件。
 """
 import xml.etree.ElementTree as ET
+import json
 from pathlib import Path
 import logging
 import re

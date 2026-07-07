@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,6 +15,7 @@
       height: 60vh;
       color: var(--text-color);
     }
+
     .spinner {
       width: 50px;
       height: 50px;
@@ -23,26 +25,38 @@
       animation: spin 1s linear infinite;
       margin-bottom: 2rem;
     }
+
     @keyframes spin {
-      to { transform: rotate(360deg); }
+      to {
+        transform: rotate(360deg);
+      }
     }
-    h2 { margin: 0; color: #334155; }
-    p { color: #64748b; margin-top: 1rem; }
+
+    h2 {
+      margin: 0;
+      color: #334155;
+    }
+
+    p {
+      color: #64748b;
+      margin-top: 1rem;
+    }
   </style>
 </head>
+
 <body>
   <div class="container">
     <h1>🎬 中文字幕获取</h1>
     <div class="loading-container">
       <div class="spinner"></div>
       <h2>正在全库扫描，请稍候...</h2>
-      <p>系统正在检查所有电影和字幕的状态，可能需要几秒钟</p>
+      <p>系统正在检查所有电影和字幕的状态，需要一点时间</p>
     </div>
   </div>
-  
+
   <script>
     // 页面加载完成后立即去后台请求真实的页面
-    window.onload = function() {
+    window.onload = function () {
       fetch('/_index_content')
         .then(response => {
           if (!response.ok) throw new Error('网络请求失败');
@@ -54,10 +68,11 @@
           document.close();
         })
         .catch(err => {
-          document.querySelector('.loading-container').innerHTML = 
+          document.querySelector('.loading-container').innerHTML =
             `<h2 style="color:#ef4444;">❌ 扫描失败</h2><p>${err.message}</p><button class="btn btn-primary" onclick="location.reload()" style="margin-top:1rem">重试</button>`;
         });
     };
   </script>
 </body>
+
 </html>
