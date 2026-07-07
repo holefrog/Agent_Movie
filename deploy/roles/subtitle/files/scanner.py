@@ -232,27 +232,6 @@ def parse_nfo(nfo_path: Path) -> dict | None:
     }
 
 
-def _is_chinese_audio(directory: Path, main_video: Path) -> bool | None:
-    """
-    通过解析同目录下的 sound_track.json 判断是否包含中文语音。
-    如果不包含，则返回 False。
-    如果文件不存在，则返回 None，代表未进行音轨体检。
-    不再进行当场扫描，以避免阻塞主界面。
-    """
-    nfo_path = directory / "sound_track.json"
-    
-    if nfo_path.exists():
-        try:
-            import json
-            data = json.loads(nfo_path.read_text())
-            for track in data.get("audio_tracks", []):
-                if track.get("lang") == "zh":
-                    return True
-            return False
-        except Exception as e:
-            logger.warning(f"读取 sound_track.json 失败: {e}")
-            return False
-            
     return None
 
 
@@ -337,7 +316,7 @@ def scan_directory(media_path: str) -> list[dict]:
             elif ".en." in name_lower or ".eng." in name_lower:
                 english_subs.append(sub)
 
-        has_chinese_sub = len(chinese_subs) > 0
+        has_external_chinese_sub = len(chinese_subs) > 0
         has_english_sub = len(english_subs) > 0
         english_sub_path = str(english_subs[0]) if english_subs else ""
 
@@ -347,7 +326,8 @@ def scan_directory(media_path: str) -> list[dict]:
             "imdb_id": nfo_info["imdb_id"],
             "languages": nfo_info["languages"],
             "is_chinese_audio": is_chinese_audio,
-            "has_chinese_sub": has_chinese_sub,
+            "has_external_chinese_sub": has_external_chinese_sub,
+            "has_internal_chinese_sub": has_internal_chinese_sub,
             "has_english_sub": has_english_sub,
             "english_sub_path": english_sub_path,
             "video_path": str(main_video),
