@@ -40,15 +40,19 @@
         🧼 一键清洗并重命名脏字幕
       </button>
       <p id="renameProgress" style="display:none; color: #b45309; font-weight: bold; margin-top: 1rem;">正在拼命清理中，请稍候...（不要关闭页面）</p>
+      <div id="renameErrorBox" style="display:none; margin-top: 1rem; padding: 1rem; background-color: #fef2f2; border: 1px solid #f87171; border-radius: 0.5rem; color: #b91c1c; text-align: left;"></div>
     </div>
 
     <script>
       async function triggerRename() {
         const btn = document.getElementById('btnRenameSubs');
         const prog = document.getElementById('renameProgress');
+        const errBox = document.getElementById('renameErrorBox');
+        
         btn.disabled = true;
         btn.style.opacity = '0.5';
         prog.style.display = 'block';
+        errBox.style.display = 'none';
         
         try {
           const res = await fetch('/api/rename_subs', { method: 'POST' });
@@ -57,10 +61,12 @@
             alert(data.message);
             window.location.reload();
           } else {
-            alert('清洗失败: ' + data.error);
+            errBox.style.display = 'block';
+            errBox.innerHTML = `<strong>🚨 操作被中止：</strong><br>${data.error}`;
           }
         } catch (err) {
-          alert('请求出错: ' + err);
+          errBox.style.display = 'block';
+          errBox.innerHTML = `<strong>🚨 网络请求异常：</strong><br>${err}`;
         } finally {
           btn.disabled = false;
           btn.style.opacity = '1';

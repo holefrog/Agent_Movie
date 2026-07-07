@@ -189,7 +189,8 @@ def rename_subtitle(filepath: Path, detected_lang: str) -> Path:
     new_path = filepath.parent / new_name
 
     if new_path.exists():
-        logger.warning(f"目标文件已存在，尝试删除原有错误命名的文件再覆盖或者跳过 (保留已有): {new_path}")
+        if filepath.resolve() != new_path.resolve(): # Windows 等大小写不敏感的文件系统处理
+            raise FileExistsError(f"冲突: 试图将 '{filepath.name}' 重命名为 '{new_name}' 时失败，该目标文件已存在，请手动排查或删除多余字幕。")
         return filepath
 
     filepath.rename(new_path)
@@ -366,6 +367,7 @@ def normalize_subtitles(media_path: str) -> dict:
     processed_count = 0
     deleted_count = 0
     renamed_count = 0
+    errors = []
     
     # 注意：这里原本是为了排除不要读到它，现在虽然改名叫 json，但还是保留防卫逻辑
     for nfo_path in root.rglob("*.nfo"):
@@ -374,7 +376,7 @@ def normalize_subtitles(media_path: str) -> dict:
             
         directory = nfo_path.parent
         sub_files = [f for f in directory.iterdir()
-                     if f.is_file() and f.suffix.lower() in (".srt", ".ass", ".ssa")]
+                     if f.is_file() and f.suffix.lower() in _SUB_EXTS]
                      
         for sub in sub_files:
             if sub.stat().st_size < 1024:
@@ -393,28 +395,30 @@ def normalize_subtitles(media_path: str) -> dict:
             detected = detect_subtitle_language(sub)
             if detected in ("zh-CN", "zh-TW"):
                 normalize_subtitle_encoding_to_utf8(sub)
-            new_path = rename_subtitle(sub, detected)
-            if new_path.name != sub.name:
-                renamed_count += 1
+                
+            try:
+                new_path = rename_subtitle(sub, detected)
+                if new_path.name != sub.name:
+                    renamed_count += 1
+            except FileExistsError as e:
+                errors.append(f"[{directory.name}] {str(e)}")
                 
         processed_count += 1
         
     return {
-        "success": True,
+        "success": len(errors) == 0,
         "processed_dirs": processed_count,
         "deleted_count": deleted_count,
-        "renamed_count": renamed_count
+        "renamed_count": renamed_count,
+        "errors": errors
     }
 
 
-def get_movies_needing_subs(media_paths: list[str]) -> list[dict]:
+def get_all_movies(media_paths: list[str]) -> list[dict]:
     """
-    扫描所有媒体路径，返回需要中文字幕的影片列表。
-    已有中文字幕的不返回。
+    扫描所有媒体路径，返回所有的影片列表。
     """
     all_movies = []
     for path in media_paths:
         all_movies.extend(scan_directory(path))
-
-    # 过滤掉已有中文字幕的
-    return [m for m in all_movies if not m["has_chinese_sub"]]
+    return all_movies

@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify
 
-from scanner import get_movies_needing_subs
+from scanner import get_all_movies
 from subtitle import get_chinese_subtitle
 
 # 日志配置
@@ -75,16 +75,17 @@ def _index_content():
     try:
         config = load_config()
         media_paths = config["scanner"]["media_paths"]
-        all_movies = get_movies_needing_subs(media_paths)
+        all_movies = get_all_movies(media_paths)
         
         missing_nfo_count = sum(1 for m in all_movies if m["is_chinese_audio"] is None)
-        dirty_subs_count = sum(m.get("dirty_subs_count", 0) for m in all_movies)
+        # 统计含有脏字幕的【电影数】，而不是总文件数
+        dirty_subs_movie_count = sum(1 for m in all_movies if m.get("dirty_subs_count", 0) > 0)
 
         # 只保留确实需要且可以翻译中文字幕的电影（排除中文语音）
         # 强制要求：如果 is_chinese_audio 是 None（未生成 nfo），它不应该出现在翻译列表里
         movies = [m for m in all_movies if not m["has_chinese_sub"] and m["is_chinese_audio"] is False]
         
-        return render_template("index.html", movies=movies, missing_nfo_count=missing_nfo_count, dirty_subs_count=dirty_subs_count)
+        return render_template("index.html", movies=movies, missing_nfo_count=missing_nfo_count, dirty_subs_count=dirty_subs_movie_count)
     except Exception as e:
         logger.error(f"加载首页失败: {e}", exc_info=True)
         return render_template("index.html", error=str(e), movies=[], missing_nfo_count=0, dirty_subs_count=0)
@@ -112,7 +113,7 @@ def submit():
         return jsonify({"error": "未选择任何影片"}), 400
 
     media_paths = config["scanner"]["media_paths"]
-    all_movies = get_movies_needing_subs(media_paths)
+    all_movies = get_all_movies(media_paths)
 
     selected_set = set(selected)
     to_process = [m for m in all_movies if m["directory"] in selected_set]
@@ -165,14 +166,23 @@ def api_rename_subs():
     total_processed = 0
     total_deleted = 0
     total_renamed = 0
+    all_errors = []
     
     for path in media_paths:
         res = scanner.normalize_subtitles(path)
-        if res.get("success"):
-            total_processed += res.get("processed_dirs", 0)
-            total_deleted += res.get("deleted_count", 0)
-            total_renamed += res.get("renamed_count", 0)
+        if "errors" in res and res["errors"]:
+            all_errors.extend(res["errors"])
             
+        total_processed += res.get("processed_dirs", 0)
+        total_deleted += res.get("deleted_count", 0)
+        total_renamed += res.get("renamed_count", 0)
+            
+    if all_errors:
+        return jsonify({
+            "success": False,
+            "error": "重命名过程发现冲突（目标文件已存在），请手动介入处理：<br>" + "<br>".join(all_errors)
+        })
+        
     return jsonify({
         "success": True, 
         "message": f"处理完成！删除了 {total_deleted} 个垃圾字幕，重命名了 {total_renamed} 个字幕文件。"
