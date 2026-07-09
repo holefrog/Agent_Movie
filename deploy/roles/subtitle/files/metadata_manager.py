@@ -39,11 +39,15 @@ class Metadata:
             with open(self.metadata_path, 'r', encoding='utf-8') as f:
                 self._data = json.load(f)
             
-            # 版本检查和迁移
-            version = self._data.get('version', 1)
-            if version < 2:
-                logger.info(f"状态文件版本 {version} 需要迁移到版本 2: {self.metadata_path.name}")
-                self._migrate_to_v2()
+            # 如果文件内容不是字典，重置为空结构
+            if not isinstance(self._data, dict):
+                logger.warning(f"状态文件格式错误 ({type(self._data)})，重置: {self.metadata_path.name}")
+                self._data = self._get_empty_structure()
+                self.save()
+                return self._data
+            
+            # 确保结构完整并迁移
+            self._ensure_structure()
             
             return self._data
         except Exception as e:
@@ -97,32 +101,47 @@ class Metadata:
             }
         }
     
-    def _migrate_to_v2(self):
-        """从版本1迁移到版本2"""
-        # 如果是旧版本，确保所有字段都存在
-        if "movie" not in self._data:
-            self._data["movie"] = {"title": "", "year": "", "imdb_id": "", "version": ""}
-        if "version" not in self._data["movie"]:
-            self._data["movie"]["version"] = ""
+    def _ensure_structure(self):
+        """确保数据结构完整（修复由于历史遗留导致的部分缺失或旧版格式）"""
+        empty = self._get_empty_structure()
+        changed = False
         
-        if "subtitle_completion" not in self._data:
-            self._data["subtitle_completion"] = {
-                "done": False,
-                "method": "",
-                "translator": "",
-                "chinese_subtitle": "",
-                "sync_offset": 0.0,
-                "mismatch_detected": False,
-                "error": None
-            }
-        else:
-            if "sync_offset" not in self._data["subtitle_completion"]:
-                self._data["subtitle_completion"]["sync_offset"] = 0.0
-            if "mismatch_detected" not in self._data["subtitle_completion"]:
-                self._data["subtitle_completion"]["mismatch_detected"] = False
-        
-        self._data["version"] = 2
-        self.save()
+        # 特殊处理：版本1中的 audio_tracks 可能是 list
+        if "audio_tracks" in self._data and isinstance(self._data["audio_tracks"], list):
+            old_tracks = self._data["audio_tracks"]
+            self._data["audio_tracks"] = empty["audio_tracks"].copy()
+            self._data["audio_tracks"]["tracks"] = old_tracks
+            changed = True
+            
+        # 遍历所有空结构的键
+        for key, default_val in empty.items():
+            if key not in self._data:
+                # 针对多层嵌套的字典我们需要 copy 以防止引用同一个字典
+                if isinstance(default_val, dict):
+                    self._data[key] = default_val.copy()
+                else:
+                    self._data[key] = default_val
+                changed = True
+            elif isinstance(default_val, dict):
+                # 确保存量也是 dict
+                if not isinstance(self._data[key], dict):
+                    self._data[key] = default_val.copy()
+                    changed = True
+                else:
+                    # 遍历子字典，补充缺少的键
+                    for sub_key, sub_val in default_val.items():
+                        if sub_key not in self._data[key]:
+                            self._data[key][sub_key] = sub_val
+                            changed = True
+                            
+        version = self._data.get("version", 1)
+        if version < 2:
+            logger.info(f"状态文件版本 {version} 需要迁移到版本 2: {self.metadata_path.name}")
+            self._data["version"] = 2
+            changed = True
+            
+        if changed:
+            self.save()
     
     def save(self):
         """保存状态文件到磁盘"""
