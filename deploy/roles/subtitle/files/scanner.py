@@ -1,13 +1,17 @@
 """
 scanner.py - 扫描媒体库目录，解析 NFO，检测并重命名字幕文件。
+Stage 1: 媒体库扫描
+Stage 2: 字幕评估
+Stage 3: 字幕清洗
 """
 import xml.etree.ElementTree as ET
-import json
 from pathlib import Path
 import logging
 import re
 import os
 import toml
+
+from metadata_manager import Metadata
 
 logger = logging.getLogger(__name__)
 
@@ -231,8 +235,9 @@ def parse_nfo(nfo_path: Path) -> dict | None:
 
 def scan_directory(media_path: str) -> list[dict]:
     """
-    递归扫描媒体目录，返回影片信息列表。
+    递归扫描媒体目录，返回影片信息列表（Stage 1）。
     每个视频文件对应一条记录。
+    同时执行 Stage 2：字幕评估。
     """
     root = Path(media_path)
     if not root.is_dir():
@@ -267,51 +272,31 @@ def scan_directory(media_path: str) -> list[dict]:
         # 提取主视频（选最大的视频文件作为主片）
         main_video = max(video_files, key=lambda f: f.stat().st_size)
         
+        # Stage 1: 写入影片信息到状态文件
+        metadata = Metadata(main_video)
+        metadata.set_movie_info(
+            title=nfo_info["title"],
+            year=nfo_info["year"],
+            imdb_id=nfo_info["imdb_id"],
+            version=""  # 可以从NFO或其他地方提取版本信息
+        )
+        
         is_chinese_audio = None
         has_internal_chinese_sub = False
         
-        sound_track_file = directory / "sound_track.json"
-        if sound_track_file.exists():
+        # 读取状态文件中的音轨信息
+        if metadata.exists():
             try:
-                with open(sound_track_file, "rb") as f:
-                    data = json.load(f)
-                    
-                # 兼容老数据：如果没有 subtitle_tracks 字段，强制视为未扫描完，重新触发体检
-                if "subtitle_tracks" not in data:
-                    is_chinese_audio = None
-                else:
-                    # 判断是否有中文语音
-                    for track in data.get("audio_tracks", []):
+                audio_info = metadata.get_audio_tracks()
+                if audio_info.get("done"):
+                    is_chinese_audio = audio_info.get("is_chinese_audio", False)
+                    # 判断是否有内置中文字幕（从tracks中获取）
+                    for track in audio_info.get("tracks", []):
                         if track.get("lang") == "zh":
-                            is_chinese_audio = True
-                            break
-                    if is_chinese_audio is None:
-                        is_chinese_audio = False
-                        
-                    # 判断是否有内置中文字幕
-                    for sub_track in data.get("subtitle_tracks", []):
-                        if sub_track.get("lang") == "zh":
                             has_internal_chinese_sub = True
                             break
             except Exception as e:
-                logger.warning(f"读取 sound_track.json 失败 {sound_track_file}: {e}")
-
-        if is_chinese_audio is None:
-            # 未建库，跳过耗时的字幕读取、重命名等，直接存入拦截队列
-            results.append({
-                "title": nfo_info["title"],
-                "year": nfo_info["year"],
-                "imdb_id": nfo_info["imdb_id"],
-                "languages": nfo_info["languages"],
-                "is_chinese_audio": None,
-                "has_external_chinese_sub": False,
-                "has_internal_chinese_sub": False,
-                "has_english_sub": False,
-                "english_sub_path": "",
-                "video_path": str(main_video),
-                "directory": str(directory),
-            })
-            continue
+                logger.warning(f"读取状态文件失败 {metadata.metadata_path.name}: {e}")
 
         # 找到该目录下所有字幕文件
         sub_files = [f for f in directory.iterdir()
@@ -342,6 +327,13 @@ def scan_directory(media_path: str) -> list[dict]:
         has_external_chinese_sub = len(chinese_subs) > 0
         has_english_sub = len(english_subs) > 0
         english_sub_path = str(english_subs[0]) if english_subs else ""
+        
+        # Stage 2: 写入字幕评估结果
+        metadata.set_subtitles_assessment(
+            has_chinese=has_external_chinese_sub,
+            has_english=has_english_sub,
+            has_garbage=len(dirty_subs) > 0
+        )
 
         results.append({
             "title": nfo_info["title"],
@@ -362,7 +354,7 @@ def scan_directory(media_path: str) -> list[dict]:
     return results
 
 def normalize_subtitles(media_path: str) -> dict:
-    """执行 Stage 2：规范化所有的脏字幕，包括删除极小垃圾文件、读取内容重命名"""
+    """执行 Stage 3：规范化所有的脏字幕，包括删除极小垃圾文件、读取内容重命名"""
     root = Path(media_path)
     if not root.is_dir():
         return {"success": False, "error": f"媒体路径不存在: {media_path}"}
@@ -372,15 +364,16 @@ def normalize_subtitles(media_path: str) -> dict:
     renamed_count = 0
     errors = []
     
-    # 注意：这里原本是为了排除不要读到它，现在虽然改名叫 json，但还是保留防卫逻辑
+    # 排除状态文件（.json文件）
     for nfo_path in root.rglob("*.nfo"):
-        if nfo_path.name.lower() == "sound_track.json" or nfo_path.name.lower() == "language.nfo":
+        if nfo_path.name.lower().endswith(".json") or nfo_path.name.lower() == "language.nfo":
             continue
             
         directory = nfo_path.parent
         video_files = [f for f in directory.iterdir()
                        if f.is_file() and f.suffix.lower() in _VIDEO_EXTS]
         
+        main_video = None
         main_video_stem = None
         if video_files:
             main_video = max(video_files, key=lambda f: f.stat().st_size)
@@ -419,6 +412,13 @@ def normalize_subtitles(media_path: str) -> dict:
                 errors.append(f"[{directory.name}] {str(e)}")
                 
         processed_count += 1
+        
+        # 更新状态文件（Stage 3）
+        if main_video:
+            metadata = Metadata(main_video)
+            metadata.set_subtitles_cleanup(deleted_count, renamed_count)
+            if errors:
+                metadata.set_error(3, "; ".join(errors))
         
     return {
         "success": len(errors) == 0,

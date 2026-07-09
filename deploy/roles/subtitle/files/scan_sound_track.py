@@ -10,6 +10,7 @@ from tempfile import NamedTemporaryFile
 
 import toml
 from retry import with_retry
+from metadata_manager import Metadata
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("scan_sound_track")
@@ -26,7 +27,7 @@ stt_status = {
 }
 
 def get_all_processed_movies(media_paths: list[str]) -> dict:
-    """扫描目录，返回所有已经存在 sound_track.json 的影片记录及全库电影总数"""
+    """扫描目录，返回所有已经存在状态文件的影片记录及全库电影总数"""
     history = []
     total_library_count = 0
     for base_path in media_paths:
@@ -36,7 +37,7 @@ def get_all_processed_movies(media_paths: list[str]) -> dict:
             
         processed_dirs = set()
         for meta_nfo in base_dir.rglob("*.nfo"):
-            if meta_nfo.name.lower() in ("sound_track.json", "language.nfo"):
+            if meta_nfo.name.lower().endswith(".json") or meta_nfo.name.lower() == "language.nfo":
                 continue
                 
             movie_dir = meta_nfo.parent
@@ -50,14 +51,16 @@ def get_all_processed_movies(media_paths: list[str]) -> dict:
             processed_dirs.add(movie_dir)
             total_library_count += 1
             
-            nfo_path = movie_dir / "sound_track.json"
-            if nfo_path.exists():
+            main_video = max(video_files, key=lambda f: f.stat().st_size)
+            metadata = Metadata(main_video)
+            if metadata.exists():
                 try:
-                    data = json.loads(nfo_path.read_text())
-                    history.append({
-                        "title": movie_dir.name,
-                        "tracks": data.get("audio_tracks", [])
-                    })
+                    audio_info = metadata.get_audio_tracks()
+                    if audio_info.get("done"):
+                        history.append({
+                            "title": movie_dir.name,
+                            "tracks": audio_info.get("tracks", [])
+                        })
                 except Exception:
                     pass
                     
@@ -271,23 +274,25 @@ def build_language_nfo_for_video(video_path: Path, api_key: str) -> dict:
     duration = get_video_duration(video_path)
     stream_indices = get_audio_stream_indices(video_path)
     
+    # 使用 metadata_manager
+    metadata = Metadata(video_path)
+    
     if not stream_indices:
         logger.warning(f"未找到音频流: {video_path.name}")
+        metadata.set_audio_tracks("", False, [], "未找到音频流")
         return {"audio_tracks": [], "subtitle_tracks": []}
         
     result = {"audio_tracks": [], "subtitle_tracks": []}
     
     # 检查是否已经有存档，避免重新做耗时的音轨识别
-    nfo_path = video_path.parent / "sound_track.json"
     existing_audio_tracks = None
-    if nfo_path.exists():
+    if metadata.exists():
         try:
-            with open(nfo_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if "audio_tracks" in data:
-                existing_audio_tracks = data["audio_tracks"]
+            audio_info = metadata.get_audio_tracks()
+            if audio_info.get("done"):
+                existing_audio_tracks = audio_info.get("tracks", [])
         except Exception as e:
-            logger.warning(f"读取现有 sound_track.json 失败, 将重新分析: {e}")
+            logger.warning(f"读取现有状态文件失败, 将重新分析: {e}")
             
     # 分析字幕流 (这是新加的极速逻辑，不耗时)
     subtitle_streams = get_subtitle_streams(video_path)
@@ -310,13 +315,20 @@ def build_language_nfo_for_video(video_path: Path, api_key: str) -> dict:
             result["audio_tracks"].append({"index": idx, "lang": lang})
             logger.info(f"音轨 {idx} 分析完成 -> {lang}")
         
-    # 保存结果
-    nfo_path = video_path.parent / "sound_track.json"
+    # 保存结果到状态文件
     try:
-        nfo_path.write_text(json.dumps(result, indent=2))
-        logger.info(f"已生成 {nfo_path.name}")
+        # 判断主要语言
+        primary_language = ""
+        is_chinese_audio = False
+        if result["audio_tracks"]:
+            primary_language = result["audio_tracks"][0]["lang"]
+            is_chinese_audio = primary_language == "zh"
+        
+        metadata.set_video_info(duration)
+        metadata.set_audio_tracks(primary_language, is_chinese_audio, result["audio_tracks"])
+        logger.info(f"已保存状态文件: {metadata.metadata_path.name}")
     except Exception as e:
-        logger.error(f"保存 {nfo_path.name} 失败: {e}")
+        logger.error(f"保存状态文件失败: {e}")
         
     return result
 
@@ -358,7 +370,7 @@ def scan_all_movies(api_key: str, media_paths: list[str]):
             
         processed_dirs = set()
         for meta_nfo in base_dir.rglob("*.nfo"):
-            if meta_nfo.name.lower() in ("sound_track.json", "language.nfo"):
+            if meta_nfo.name.lower().endswith(".json") or meta_nfo.name.lower() == "language.nfo":
                 continue
                 
             movie_dir = meta_nfo.parent
@@ -371,18 +383,18 @@ def scan_all_movies(api_key: str, media_paths: list[str]):
                 
             processed_dirs.add(movie_dir)
                 
-            nfo_path = movie_dir / "sound_track.json"
-            if nfo_path.exists():
+            main_video = max(video_files, key=lambda f: f.stat().st_size)
+            metadata = Metadata(main_video)
+            if metadata.exists():
                 try:
-                    with open(nfo_path, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                    if "subtitle_tracks" in data:
+                    audio_info = metadata.get_audio_tracks()
+                    if audio_info.get("done"):
                         stt_status["already_processed_count"] += 1
                         continue
                 except Exception:
                     pass
             
-            movies_to_process.append((movie_dir, max(video_files, key=lambda f: f.stat().st_size)))
+            movies_to_process.append((movie_dir, main_video))
             
     # 按电影名称字母序排序，保证体检扫描顺序稳定且可预测
     movies_to_process.sort(key=lambda x: x[0].name.lower())

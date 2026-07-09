@@ -1,6 +1,6 @@
 """
 app.py - Flask Web 入口。
-提供影片列表页面，用户勾选后逐个获取中文字幕。
+5阶段架构：状态机驱动的渐进式处理
 """
 import sys
 import tomllib
@@ -10,6 +10,7 @@ from flask import Flask, render_template, request, jsonify
 
 from scanner import get_all_movies
 from subtitle import get_missing_subtitle
+from state_machine import StateMachine
 
 # 日志配置
 logging.basicConfig(
@@ -150,9 +151,26 @@ def api_stt_history():
     return jsonify(data)
 
 
-@app.route("/api/rename_subs", methods=["POST"])
-def api_rename_subs():
-    """执行 Stage 2：清理并规范化字幕命名"""
+@app.route("/api/page_status")
+def api_page_status():
+    """获取当前页面状态（状态机）"""
+    config = load_config()
+    media_paths = config["scanner"]["media_paths"]
+    
+    state_machine = StateMachine(media_paths)
+    page_state = state_machine.compute_page_state()
+    
+    return jsonify({
+        "current_stage": page_state.current_stage,
+        "is_blocking": page_state.is_blocking,
+        "message": page_state.message,
+        "stats": page_state.stats
+    })
+
+
+@app.route("/api/stage3_cleanup", methods=["POST"])
+def api_stage3_cleanup():
+    """执行 Stage 3：清理并规范化字幕命名"""
     import scanner
     config = load_config()
     media_paths = config["scanner"]["media_paths"]
@@ -183,9 +201,9 @@ def api_rename_subs():
     })
 
 
-@app.route("/api/stt_start", methods=["POST"])
-def api_stt_start():
-    """启动全库音轨体检跑批"""
+@app.route("/api/stage4_stt", methods=["POST"])
+def api_stage4_stt():
+    """启动 Stage 4：全库音轨识别跑批"""
     import scan_sound_track
     import threading
     
@@ -203,9 +221,53 @@ def api_stt_start():
     return jsonify({"success": True})
 
 
+@app.route("/api/stage5_complete", methods=["POST"])
+def api_stage5_complete():
+    """执行 Stage 5：字幕补全（下载+翻译）"""
+    config = load_config()
+    os_config = config["opensubtitles"]
+    translate_config = config["translate"][config["provider"]["translate"]]
+    translate_config["provider"] = config["provider"]["translate"]
+    
+    selected = request.json.get("selected", [])
+    if not selected:
+        return jsonify({"error": "未选择任何影片"}), 400
+
+    media_paths = config["scanner"]["media_paths"]
+    all_movies = get_all_movies(media_paths)
+
+    selected_set = set(selected)
+    to_process = [m for m in all_movies if m["directory"] in selected_set]
+
+    results = []
+    for i, movie in enumerate(to_process):
+        logger.info(f"处理 {i + 1}/{len(to_process)}: {movie['title']}")
+        result = get_missing_subtitle(movie, os_config, translate_config)
+        results.append({
+            "title": movie["title"],
+            "year": movie["year"],
+            **result,
+        })
+
+    return jsonify({"results": results})
+
+
+# 兼容旧路由（内部调用新路由）
+@app.route("/api/rename_subs", methods=["POST"])
+def api_rename_subs():
+    """兼容旧路由：执行 Stage 3"""
+    return api_stage3_cleanup()
+
+
+@app.route("/api/stt_start", methods=["POST"])
+def api_stt_start():
+    """兼容旧路由：启动 Stage 4"""
+    return api_stage4_stt()
+
+
 @app.route("/api/stt_stop", methods=["POST"])
 def api_stt_stop():
-    """中止全库音轨体检跑批"""
+    """中止 Stage 4 跑批"""
     import scan_sound_track
     scan_sound_track.stt_status["should_stop"] = True
     return jsonify({"success": True})

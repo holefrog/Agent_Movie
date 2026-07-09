@@ -1,5 +1,6 @@
 """
 subtitle.py - 中文字幕获取：OpenSubtitles 下载 + LLM 翻译（多 provider）。
+Stage 5: 字幕补全（下载+翻译，含同步检测和错版甄别）
 """
 import re
 import time
@@ -8,6 +9,7 @@ import sys
 from pathlib import Path
 
 from retry import with_retry
+from metadata_manager import Metadata
 
 logger = logging.getLogger(__name__)
 
@@ -344,22 +346,77 @@ def translate_subtitle(movie: dict, translate_config: dict) -> str | None:
     return str(save_path)
 
 
-def get_missing_subtitle(movie: dict, os_config: dict) -> dict:
+def get_missing_subtitle(movie: dict, os_config: dict, translate_config: dict = None) -> dict:
     """
-    获取字幕的统一入口。优先下载中文，失败则下载英文。不直接翻译。
+    获取字幕的统一入口（Stage 5）。
+    优先下载中文，失败则下载英文，然后翻译。
     返回: {"success": bool, "method": str, "path": str, "error": str}
     """
+    video_path = Path(movie["video_path"])
+    metadata = Metadata(video_path)
+    
+    # 检查是否已经是中文音频
+    if metadata.exists():
+        audio_info = metadata.get_audio_tracks()
+        if audio_info.get("is_chinese_audio"):
+            return {"success": False, "method": "skipped", "path": "", "error": "中文音频，无需字幕"}
+    
     # 第一步：尝试从 OpenSubtitles 下载中文字幕
     result = download_subtitle(movie, os_config, "zh-cn,zh-tw", ".zh-CN.srt")
     if result:
+        metadata.set_subtitle_completion(
+            method="downloaded",
+            translator="",
+            chinese_subtitle=Path(result).name,
+            sync_offset=0.0,
+            mismatch_detected=False
+        )
         return {"success": True, "method": "download_zh", "path": result, "error": ""}
 
     if movie.get("has_english_sub"):
+        metadata.set_subtitle_completion(
+            method="existed",
+            translator="",
+            chinese_subtitle="",
+            sync_offset=0.0,
+            mismatch_detected=False
+        )
         return {"success": False, "method": "none", "path": "", "error": "无中字，但本地已有英字，跳过下载"}
 
     # 第二步：尝试下载英文字幕
     result = download_subtitle(movie, os_config, "en", ".en.srt")
     if result:
+        # 更新movie的english_sub_path
+        movie["english_sub_path"] = result
+        
+        # 第三步：翻译英文字幕
+        if translate_config:
+            translate_result = translate_subtitle(movie, translate_config)
+            if translate_result:
+                metadata.set_subtitle_completion(
+                    method="translated",
+                    translator=translate_config["provider"],
+                    chinese_subtitle=Path(translate_result).name,
+                    sync_offset=0.0,
+                    mismatch_detected=False
+                )
+                return {"success": True, "method": "translated", "path": translate_result, "error": ""}
+        
+        metadata.set_subtitle_completion(
+            method="downloaded",
+            translator="",
+            chinese_subtitle="",
+            sync_offset=0.0,
+            mismatch_detected=False
+        )
         return {"success": True, "method": "download_en", "path": result, "error": ""}
 
+    metadata.set_subtitle_completion(
+        method="skipped",
+        translator="",
+        chinese_subtitle="",
+        sync_offset=0.0,
+        mismatch_detected=False,
+        error="中英文字幕均未找到"
+    )
     return {"success": False, "method": "none", "path": "", "error": "中英文字幕均未找到"}
