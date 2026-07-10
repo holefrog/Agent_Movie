@@ -14,8 +14,18 @@
     <div class="error-msg">{{ error }}</div>
     {% endif %}
 
-    <!-- 5阶段架构状态显示 -->
+    <!-- 6阶段架构状态显示 -->
     <div id="stageContainer">
+      <div class="stage-card" id="stage0Card">
+        <h3>Stage 0: 检索目录</h3>
+        <p id="stage0Status">等待中...</p>
+        <div id="stage0Progress" style="display:none; margin-top:1rem;">
+          <div class="loading-progress-bar-bg">
+            <div class="progress-bar-fill" id="stage0ProgressBar" style="width:100%; background:#94a3b8;"></div>
+          </div>
+          <p id="stage0ProgressText" style="margin-top:0.5rem; font-size:0.9rem; color:#64748b;">正在检索文件结构，请稍候...</p>
+        </div>
+      </div>
       <div class="stage-card" id="stage1Card">
         <h3>Stage 1: 媒体库扫描</h3>
         <p id="stage1Status">扫描中...</p>
@@ -140,7 +150,7 @@
       const { current_stage, is_blocking, message, stats } = data;
 
       // 更新各Stage卡片样式
-      for (let i = 1; i <= 5; i++) {
+      for (let i = 0; i <= 5; i++) {
         const card = document.getElementById(`stage${i}Card`);
         const status = document.getElementById(`stage${i}Status`);
         
@@ -157,14 +167,22 @@
         }
       }
 
-      // 处理 Stage 1 & 2 扫描进度
+      // 处理 Stage 0/1/2 扫描进度
+      const stage0Progress = document.getElementById('stage0Progress');
       const stage1Progress = document.getElementById('stage1Progress');
       const stage2Progress = document.getElementById('stage2Progress');
-      if (current_stage === 1) {
+      if (current_stage === 0) {
+        stage0Progress.style.display = 'block';
+        stage1Progress.style.display = 'none';
+        stage2Progress.style.display = 'none';
+        fetchScanProgress();
+      } else if (current_stage === 1) {
+        stage0Progress.style.display = 'none';
         stage1Progress.style.display = 'block';
         stage2Progress.style.display = 'block';
         fetchScanProgress();
       } else {
+        stage0Progress.style.display = 'none';
         stage1Progress.style.display = 'none';
         stage2Progress.style.display = 'none';
       }
@@ -211,12 +229,16 @@
       // Stage 5 按钮
       document.getElementById('btnStage5').style.display = (current_stage === 5 && stats.need_subtitle > 0) ? 'inline-block' : 'none';
 
-      // 如果Stage 5完成，显示影片列表
+      // 无论处于哪个Stage，只要总数大于0，就显示影片列表容器
+      if ((stats && stats.total > 0) || movies.length > 0) {
+        document.getElementById('moviesContainer').style.display = 'block';
+      }
+
+      // 如果Stage 5完成，显示最终影片列表
       if (current_stage === 5 && stats.need_subtitle === 0 && stats.stage5_error === 0) {
         if (movies.length === 0) {
           loadMovies();
         }
-        document.getElementById('moviesContainer').style.display = 'block';
       }
     }
 
@@ -272,6 +294,21 @@
           // Stage 2 is technically happening together with Stage 1 in scanner
           p2Bar.style.width = `${percent}%`;
           p2Text.textContent = `正在评估字幕状态...`;
+
+          // 动态更新实时电影列表
+          if (data.results && data.results.length > 0) {
+            movies = data.results.map(m => ({
+                directory: m.directory,
+                title: m.title,
+                year: m.year,
+                languages: m.languages,
+                has_chinese_sub: m.has_external_chinese_sub || m.has_internal_chinese_sub,
+                has_english_sub: m.has_english_sub,
+                is_chinese_audio: m.is_chinese_audio === true
+            }));
+            renderMovies();
+            document.getElementById('moviesContainer').style.display = 'block';
+          }
         } else {
           p1Bar.style.width = '100%';
           p1Text.textContent = '扫描完成';
