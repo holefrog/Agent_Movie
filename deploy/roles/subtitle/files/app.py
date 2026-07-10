@@ -3,7 +3,7 @@ app.py - Flask Web 入口。
 5阶段架构：状态机驱动的渐进式处理
 """
 import sys
-import tomllib
+import toml
 import logging
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify
@@ -33,8 +33,8 @@ def load_config() -> dict:
         sys.exit(1)
         
     try:
-        with open(_CONFIG_PATH, "rb") as f:
-            config = tomllib.load(f)
+        with open(_CONFIG_PATH, "r", encoding="utf-8") as f:
+            config = toml.load(f)
     except Exception as e:
         logger.error(f"解析配置文件失败: {e}")
         sys.exit(1)

@@ -1,6 +1,0 @@
-flask
-opensubtitlescom
-google-genai
-openai
-requests
-toml
