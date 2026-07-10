@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Movie - 影片管理</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    /* 搜索和过滤工具栏样式 */
+    .filter-bar {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      align-items: center;
+    }
+    .filter-input {
+      padding: 0.5rem;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      flex: 1;
+      max-width: 400px;
+      font-size: 1rem;
+    }
+    /* 整行点击样式 */
+    .movie-row {
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .movie-row:hover {
+      background-color: #f8fafc;
+    }
+    .movie-row.selected {
+      background-color: #f0fdf4;
+    }
+    .movie-row.disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+    .checkbox-title-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .back-link {
+      display: inline-block;
+      margin-bottom: 1rem;
+      color: var(--primary-color);
+      text-decoration: none;
+      font-weight: bold;
+    }
+    .back-link:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" style="max-width: 1200px;">
+    <a href="/" class="back-link">← 返回扫描仪表盘</a>
+    <h1>🎬 影片列表与字幕下载</h1>
+
+    <div id="moviesContainer" style="margin-top: 1rem;">
+      <div class="filter-bar">
+        <input type="text" id="searchInput" class="filter-input" placeholder="搜索标题..." onkeyup="filterMovies()">
+        <label><input type="checkbox" id="selectAll" onchange="toggleAll()"> 全选可用</label>
+        <span class="subtitle-count" style="margin-bottom:0;">共 <span id="moviesCount">0</span> 部影片</span>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>标题</th>
+            <th>年份</th>
+            <th>语言</th>
+            <th>中文字幕</th>
+            <th>英文字幕</th>
+            <th>备注</th>
+          </tr>
+        </thead>
+        <tbody id="moviesTable">
+          <!-- Movies will be populated here -->
+          <tr><td colspan="6" style="text-align:center;">正在加载数据...</td></tr>
+        </tbody>
+      </table>
+
+      <div class="actions" style="margin-top: 1rem;">
+        <button id="submitBtn" class="btn btn-primary" onclick="submitSelected()" disabled>下载字幕 (首选中文，次选英文)</button>
+        <button class="btn btn-secondary" onclick="cancelAll()">取消</button>
+        <span class="selected-count" id="selectedCount">已选 0 部</span>
+      </div>
+
+      <div id="progress" style="margin-top: 1rem; display:none;">
+        <p class="progress-text" id="progressText">准备中...</p>
+        <div class="progress-bar-bg">
+          <div class="progress-bar" id="progressBar" style="width:0%"></div>
+        </div>
+        <div id="results"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allMovies = [];
+    let filteredMovies = [];
+    let selectedPaths = new Set();
+    
+    // 页面加载完成后获取数据
+    window.onload = function() {
+      fetchMovies();
+      // 启动一个定时器，定期更新一次状态（因为后台可能还在解析字幕等）
+      setInterval(fetchMovies, 5000);
+    };
+
+    async function fetchMovies() {
+      try {
+        const res = await fetch('/api/scan_progress');
+        const data = await res.json();
+        
+        if (data.results && data.results.length > 0) {
+          allMovies = data.results.map(m => ({
+              directory: m.directory,
+              title: m.title,
+              year: m.year,
+              languages: m.languages,
+              has_chinese_sub: m.has_external_chinese_sub || m.has_internal_chinese_sub,
+              has_english_sub: m.has_english_sub,
+              is_chinese_audio: m.is_chinese_audio === true
+          }));
+          filterMovies();
+        }
+      } catch (err) {
+        console.error("Failed to fetch movies:", err);
+      }
+    }
+
+    function filterMovies() {
+      const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+      filteredMovies = allMovies.filter(m => m.title.toLowerCase().includes(searchTerm));
+      renderMovies();
+    }
+
+    function renderMovies() {
+      const tbody = document.getElementById('moviesTable');
+      tbody.innerHTML = '';
+      document.getElementById('moviesCount').textContent = filteredMovies.length;
+      
+      if (filteredMovies.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">没有匹配的影片</td></tr>';
+        return;
+      }
+      
+      filteredMovies.forEach(m => {
+        const tr = document.createElement('tr');
+        const disabled = m.is_chinese_audio;
+        const checked = selectedPaths.has(m.directory);
+        
+        tr.className = `movie-row ${disabled ? 'disabled' : ''} ${checked ? 'selected' : ''}`;
+        
+        // 点击整行切换选择
+        if (!disabled) {
+          tr.onclick = function(e) {
+            // 如果点击的是复选框本身，浏览器已经改变了它的状态，我们需要同步
+            if (e.target.tagName !== 'INPUT') {
+              const cb = this.querySelector('input[type="checkbox"]');
+              cb.checked = !cb.checked;
+            }
+            toggleSelection(m.directory, tr.querySelector('input[type="checkbox"]').checked);
+          };
+        }
+
+        tr.innerHTML = `
+          <td class="title-cell">
+            <div class="checkbox-title-wrapper">
+              <input type="checkbox"
+                     class="movie-cb"
+                     value="${m.directory}"
+                     ${disabled ? 'disabled' : ''}
+                     ${checked ? 'checked' : ''}
+                     onclick="event.stopPropagation(); toggleSelection('${m.directory}', this.checked)">
+              <span>${m.title}</span>
+            </div>
+          </td>
+          <td>${m.year}</td>
+          <td><span class="tag tag-lang">${m.languages || '未知'}</span></td>
+          <td>
+            ${m.has_chinese_sub ? '<span class="tag tag-zh-cn">有</span>' : '<span class="tag tag-none">无</span>'}
+          </td>
+          <td>
+            ${m.has_english_sub ? '<span class="tag tag-en">有</span>' : '<span class="tag tag-none">无</span>'}
+          </td>
+          <td>
+            ${m.is_chinese_audio ? '<span class="tag tag-cn-audio">中文语音</span>' : ''}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+      
+      updateSelectionUI();
+    }
+
+    function toggleSelection(directory, isChecked) {
+      if (isChecked) {
+        selectedPaths.add(directory);
+      } else {
+        selectedPaths.delete(directory);
+      }
+      // 重新渲染选中样式
+      const rows = document.querySelectorAll('.movie-row');
+      rows.forEach(row => {
+        const cb = row.querySelector('.movie-cb');
+        if (cb && cb.value === directory) {
+          if (isChecked) {
+            row.classList.add('selected');
+          } else {
+            row.classList.remove('selected');
+          }
+        }
+      });
+      updateSelectionUI();
+    }
+
+    function toggleAll() {
+      const selectAll = document.getElementById('selectAll').checked;
+      const checkboxes = document.querySelectorAll('.movie-cb:not(:disabled)');
+      
+      checkboxes.forEach(cb => {
+        cb.checked = selectAll;
+        if (selectAll) {
+          selectedPaths.add(cb.value);
+        } else {
+          selectedPaths.delete(cb.value);
+        }
+      });
+      
+      renderMovies(); // 重新渲染以应用选中样式
+    }
+
+    function updateSelectionUI() {
+      const btn = document.getElementById('submitBtn');
+      const countSpan = document.getElementById('selectedCount');
+      const count = selectedPaths.size;
+      
+      countSpan.textContent = `已选 ${count} 部`;
+      btn.disabled = count === 0;
+      
+      // 更新全选按钮状态
+      const availableCheckboxes = document.querySelectorAll('.movie-cb:not(:disabled)');
+      const selectAllCheckbox = document.getElementById('selectAll');
+      if (availableCheckboxes.length > 0 && availableCheckboxes.length === count) {
+        selectAllCheckbox.checked = true;
+      } else {
+        selectAllCheckbox.checked = false;
+      }
+    }
+
+    function cancelAll() {
+      selectedPaths.clear();
+      document.getElementById('selectAll').checked = false;
+      renderMovies();
+    }
+
+    // ========== 下载流程 (从 index.html 迁移过来) ==========
+    async function submitSelected() {
+      if (selectedPaths.size === 0) return;
+      const paths = Array.from(selectedPaths);
+      
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      document.getElementById('progress').style.display = 'block';
+      document.getElementById('results').innerHTML = '';
+      
+      try {
+        const res = await fetch('/api/download_subtitles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paths: paths })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+          startDownloadProgress();
+        } else {
+          alert("提交下载任务失败: " + data.error);
+          btn.disabled = false;
+        }
+      } catch (err) {
+        alert("网络请求失败: " + err);
+        btn.disabled = false;
+      }
+    }
+
+    function startDownloadProgress() {
+      const poll = setInterval(async () => {
+        try {
+          const res = await fetch('/api/download_progress');
+          const data = await res.json();
+          
+          if (!data.is_running) {
+            clearInterval(poll);
+            document.getElementById('progressBar').style.width = '100%';
+            document.getElementById('progressText').textContent = '下载完成！';
+            
+            // 展示结果
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<h4>下载结果:</h4><ul class="result-list"></ul>';
+            const ul = resultsDiv.querySelector('ul');
+            data.results.forEach(item => {
+              const li = document.createElement('li');
+              li.textContent = item;
+              ul.appendChild(li);
+            });
+            
+            // 重新刷新列表数据
+            fetchMovies();
+            return;
+          }
+          
+          const percent = (data.current / data.total) * 100;
+          document.getElementById('progressBar').style.width = `${percent}%`;
+          document.getElementById('progressText').textContent = `正在处理: ${data.current_movie} (${data.current}/${data.total})`;
+          
+        } catch (err) {
+          console.error("Failed to fetch download progress:", err);
+        }
+      }, 1000);
+    }
+  </script>
+</body>
+</html>

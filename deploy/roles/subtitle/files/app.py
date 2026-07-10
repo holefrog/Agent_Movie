@@ -69,6 +69,11 @@ def index():
     """直接返回主界面，在前端自动触发异步全库扫描"""
     return render_template("index.html")
 
+@app.route("/movies")
+def movies_page():
+    """返回影片列表与管理界面"""
+    return render_template("movies.html")
+
 @app.route("/api/start_scan", methods=["POST"])
 def api_start_scan():
     """触发后台异步全库扫描"""

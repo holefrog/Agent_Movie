@@ -66,56 +66,20 @@
       <div class="stage-card" id="stage5Card">
         <h3>Stage 5: 字幕补全</h3>
         <p id="stage5Status">等待中...</p>
-        <button id="btnStage5" class="btn btn-primary" onclick="triggerStage5()" style="display:none;">📥 开始补全字幕</button>
+        <button id="btnStage5" class="btn btn-primary" onclick="window.location.href='/movies'" style="display:none;">📥 前往影片列表管理</button>
       </div>
 
       <div id="messageBox" style="margin-top: 1.5rem; padding: 1rem; border-radius: var(--radius-sm); display:none;"></div>
     </div>
 
-    <!-- 影片列表（Stage 5完成后显示） -->
-    <div id="moviesContainer" style="display:none; margin-top: 2rem;">
-      <p class="subtitle-count">共 <span id="moviesCount">0</span> 部影片需要中文字幕</p>
-
-      <div class="toolbar">
-        <label><input type="checkbox" id="selectAll" onchange="toggleAll()"> 全选可用</label>
-      </div>
-
-      <table>
-        <thead>
-          <tr>
-            <th style="width:40px;"></th>
-            <th>标题</th>
-            <th>年份</th>
-            <th>语言</th>
-            <th>中文字幕</th>
-            <th>英文字幕</th>
-            <th>备注</th>
-          </tr>
-        </thead>
-        <tbody id="moviesTable">
-          <!-- Movies will be populated here -->
-        </tbody>
-      </table>
-
-      <div class="actions">
-        <button id="submitBtn" class="btn btn-primary" onclick="submitSelected()" disabled>下载字幕 (首选中文，次选英文)</button>
-        <button class="btn btn-secondary" onclick="cancelAll()">取消</button>
-        <span class="selected-count" id="selectedCount">已选 0 部</span>
-      </div>
-
-      <div id="progress">
-        <p class="progress-text" id="progressText">准备中...</p>
-        <div class="progress-bar-bg">
-          <div class="progress-bar" id="progressBar" style="width:0%"></div>
-        </div>
-        <div id="results"></div>
-      </div>
+    <!-- 影片列表链接 -->
+    <div id="moviesLinkContainer" style="display:none; margin-top: 2rem; text-align: center;">
+      <a href="/movies" class="btn btn-primary" style="font-size: 1.2rem; padding: 1rem 2rem;">查看并管理影片列表 (共 <span id="moviesCount">0</span> 部)</a>
     </div>
   </div>
 
   <script>
     let pollInterval = null;
-    let movies = [];
 
     // 页面加载完成后开始轮询并触发扫描
     window.onload = function() {
@@ -226,16 +190,10 @@
       // Stage 5 按钮
       document.getElementById('btnStage5').style.display = (current_stage === 5 && stats.need_subtitle > 0) ? 'inline-block' : 'none';
 
-      // 无论处于哪个Stage，只要总数大于0，就显示影片列表容器
-      if ((stats && stats.total > 0) || movies.length > 0) {
-        document.getElementById('moviesContainer').style.display = 'block';
-      }
-
-      // 如果Stage 5完成，显示最终影片列表
-      if (current_stage === 5 && stats.need_subtitle === 0 && stats.stage5_error === 0) {
-        if (movies.length === 0) {
-          loadMovies();
-        }
+      // 无论处于哪个Stage，只要总数大于0，就显示影片列表入口
+      if (stats && stats.total > 0) {
+        document.getElementById('moviesLinkContainer').style.display = 'block';
+        document.getElementById('moviesCount').textContent = stats.total;
       }
     }
 
@@ -297,19 +255,10 @@
           p2Bar.style.width = `${percent}%`;
           p2Text.textContent = `正在评估字幕状态...`;
 
-          // 动态更新实时电影列表
+          // 动态更新进度面板上的总数（如果需要的话，目前有 moviesCount）
           if (data.results && data.results.length > 0) {
-            movies = data.results.map(m => ({
-                directory: m.directory,
-                title: m.title,
-                year: m.year,
-                languages: m.languages,
-                has_chinese_sub: m.has_external_chinese_sub || m.has_internal_chinese_sub,
-                has_english_sub: m.has_english_sub,
-                is_chinese_audio: m.is_chinese_audio === true
-            }));
-            renderMovies();
-            document.getElementById('moviesContainer').style.display = 'block';
+            document.getElementById('moviesLinkContainer').style.display = 'block';
+            document.getElementById('moviesCount').textContent = data.results.length;
           }
         } else {
           p1Bar.style.width = '100%';
@@ -363,174 +312,7 @@
       }
     }
 
-    async function triggerStage5() {
-      if (movies.length === 0) {
-        await loadMovies();
-      }
-      
-      // 自动选择所有需要字幕的影片
-      const checkboxes = document.querySelectorAll('.movie-cb:not(:disabled)');
-      checkboxes.forEach(cb => cb.checked = true);
-      updateCount();
-      
-      await submitSelected();
-    }
 
-    async function loadMovies() {
-      try {
-        const res = await fetch('/_index_content');
-        const html = await res.text();
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-        
-        // 提取影片数据
-        const rows = doc.querySelectorAll('tbody tr');
-        movies = [];
-        rows.forEach(row => {
-          const cells = row.querySelectorAll('td');
-          if (cells.length >= 7) {
-            const checkbox = cells[0].querySelector('input');
-            if (checkbox && !checkbox.disabled) {
-              movies.push({
-                directory: checkbox.value,
-                title: cells[1].textContent.trim(),
-                year: cells[2].textContent.trim(),
-                languages: cells[3].textContent.trim(),
-                has_chinese_sub: cells[4].textContent.includes('有'),
-                has_english_sub: cells[5].textContent.includes('有'),
-                is_chinese_audio: cells[6].textContent.includes('中文语音')
-              });
-            }
-          }
-        });
-        
-        renderMovies();
-      } catch (err) {
-        console.error("Failed to load movies:", err);
-      }
-    }
-
-    function renderMovies() {
-      const tbody = document.getElementById('moviesTable');
-      tbody.innerHTML = '';
-      document.getElementById('moviesCount').textContent = movies.length;
-      
-      movies.forEach(m => {
-        const tr = document.createElement('tr');
-        tr.className = m.is_chinese_audio ? 'disabled' : '';
-        tr.innerHTML = `
-          <td>
-            <input type="checkbox"
-                   class="movie-cb"
-                   value="${m.directory}"
-                   ${m.is_chinese_audio ? 'disabled' : ''}>
-          </td>
-          <td class="title-cell">${m.title}</td>
-          <td>${m.year}</td>
-          <td><span class="tag tag-lang">${m.languages || '未知'}</span></td>
-          <td>
-            ${m.has_chinese_sub ? '<span class="tag tag-zh-cn">有</span>' : '<span class="tag tag-none">无</span>'}
-          </td>
-          <td>
-            ${m.has_english_sub ? '<span class="tag tag-en">有</span>' : '<span class="tag tag-none">无</span>'}
-          </td>
-          <td>
-            ${m.is_chinese_audio ? '<span class="tag tag-cn-audio">中文语音</span>' : ''}
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-      
-      // 绑定事件
-      document.querySelectorAll('.movie-cb').forEach(cb => {
-        cb.addEventListener('change', updateCount);
-      });
-    }
-
-    function updateCount() {
-      const checked = document.querySelectorAll('.movie-cb:checked:not(:disabled)');
-      const countEl = document.getElementById('selectedCount');
-      const submitBtn = document.getElementById('submitBtn');
-      countEl.textContent = `已选 ${checked.length} 部`;
-      submitBtn.disabled = checked.length === 0;
-    }
-
-    function toggleAll() {
-      const selectAll = document.getElementById('selectAll').checked;
-      document.querySelectorAll('.movie-cb:not(:disabled)').forEach(cb => {
-        cb.checked = selectAll;
-      });
-      updateCount();
-    }
-
-    function cancelAll() {
-      document.querySelectorAll('.movie-cb').forEach(cb => {
-        cb.checked = false;
-      });
-      document.getElementById('selectAll').checked = false;
-      updateCount();
-    }
-
-    async function submitSelected() {
-      const checked = document.querySelectorAll('.movie-cb:checked:not(:disabled)');
-      const selected = Array.from(checked).map(cb => cb.value);
-
-      if (selected.length === 0) return;
-
-      document.getElementById('submitBtn').disabled = true;
-      document.querySelectorAll('.movie-cb').forEach(cb => cb.disabled = true);
-
-      const progressDiv = document.getElementById('progress');
-      const progressText = document.getElementById('progressText');
-      const progressBar = document.getElementById('progressBar');
-      const resultsDiv = document.getElementById('results');
-
-      progressDiv.style.display = 'block';
-      progressText.textContent = `正在处理 ${selected.length} 部影片...`;
-      progressBar.style.width = '10%';
-      resultsDiv.innerHTML = '';
-
-      try {
-        const response = await fetch('/api/stage5_complete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ selected }),
-        });
-
-        const data = await response.json();
-
-        if (data.error) {
-          progressText.textContent = `错误: ${data.error}`;
-          progressBar.style.width = '100%';
-          progressBar.style.background = '#fc8181';
-          return;
-        }
-
-        progressBar.style.width = '100%';
-        let okCount = 0;
-        let failCount = 0;
-
-        data.results.forEach(r => {
-          const div = document.createElement('div');
-          div.className = 'result-item';
-          if (r.success) {
-            okCount++;
-            const methodText = r.method === 'download_zh' ? '下载中文' : (r.method === 'download_en' ? '下载英文' : (r.method === 'translated' ? '翻译' : '未知'));
-            div.innerHTML = `<span class="result-ok">✅ ${r.title} (${r.year}) - ${methodText}成功</span>`;
-          } else {
-            failCount++;
-            div.innerHTML = `<span class="result-fail">❌ ${r.title} (${r.year}) - 失败: ${r.error}</span>`;
-          }
-          resultsDiv.appendChild(div);
-        });
-
-        progressText.textContent = `处理完成：${okCount} 成功，${failCount} 失败`;
-
-      } catch (err) {
-        progressText.textContent = `请求失败: ${err.message}`;
-        progressBar.style.background = '#fc8181';
-      }
-    }
   </script>
 </body>
 </html>
