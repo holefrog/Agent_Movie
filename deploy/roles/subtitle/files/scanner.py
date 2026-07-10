@@ -290,8 +290,9 @@ def scan_directory(media_path: str) -> list[dict]:
                 audio_info = metadata.get_audio_tracks()
                 if audio_info.get("done"):
                     is_chinese_audio = audio_info.get("is_chinese_audio", False)
-                    # 判断是否有内置中文字幕（从has_internal_chinese_sub字段获取）
-                    has_internal_chinese_sub = audio_info.get("has_internal_chinese_sub")
+                # 内置中文字幕存在 subtitles_assessment 中
+                sub_info = metadata.get_subtitles_assessment()
+                has_internal_chinese_sub = sub_info.get("has_internal_chinese_sub")
             except Exception as e:
                 logger.warning(f"读取状态文件失败 {metadata.metadata_path.name}: {e}")
 

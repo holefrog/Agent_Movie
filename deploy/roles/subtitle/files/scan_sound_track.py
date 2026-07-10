@@ -372,7 +372,13 @@ def build_language_nfo_for_video(video_path: Path, api_key: str) -> dict:
             is_chinese_audio = primary_language == "zh"
         
         metadata.set_video_info(duration)
-        metadata.set_audio_tracks(primary_language, is_chinese_audio, has_internal_chinese_sub, result["audio_tracks"])
+        metadata.set_audio_tracks(primary_language, is_chinese_audio, result["audio_tracks"])
+        metadata.set_subtitles_assessment(
+            has_chinese=metadata.get_subtitles_assessment().get("has_chinese", False),
+            has_english=metadata.get_subtitles_assessment().get("has_english", False),
+            has_garbage=metadata.get_subtitles_assessment().get("has_garbage", False),
+            has_internal_chinese_sub=has_internal_chinese_sub,
+        )
         logger.info(f"已保存状态文件: {metadata.metadata_path.name}")
     except Exception as e:
         logger.error(f"保存状态文件失败: {e}")
