@@ -5,113 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI 音轨体检中心 - Agent Movie</title>
     <link rel="stylesheet" href="/static/style.css">
-    <style>
-        .progress-container {
-            background-color: var(--card-bg);
-            border-radius: var(--radius-md);
-            padding: 2rem;
-            margin-bottom: 2rem;
-            box-shadow: var(--shadow-sm);
-        }
-        
-        .progress-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-        }
 
-        .progress-bar-wrapper {
-            background-color: var(--border-color);
-            border-radius: var(--radius-sm);
-            height: 12px;
-            overflow: hidden;
-            margin-bottom: 1rem;
-        }
-
-        .progress-bar {
-            background-color: var(--primary-color);
-            height: 100%;
-            width: 0%;
-            transition: width 0.3s ease;
-        }
-
-        .status-text {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-        }
-
-        .controls {
-            display: flex;
-            gap: 1rem;
-            margin-top: 1.5rem;
-        }
-        
-        .btn-danger {
-            background-color: #ef4444;
-            color: white;
-            border: none;
-            padding: 0.75rem 1.5rem;
-            border-radius: var(--radius-sm);
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .btn-danger:hover { background-color: #dc2626; }
-
-        .results-container {
-            background-color: var(--card-bg);
-            border-radius: var(--radius-md);
-            padding: 2rem;
-            box-shadow: var(--shadow-sm);
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 1rem;
-        }
-
-        th, td {
-            padding: 1rem;
-            text-align: left;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        th {
-            font-weight: 600;
-            color: var(--text-secondary);
-            background-color: var(--bg-color);
-        }
-        
-        .lang-badge {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 999px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            margin-right: 0.5rem;
-            margin-bottom: 0.25rem;
-            background-color: #f1f5f9;
-            color: #475569;
-        }
-        
-        .lang-badge.zh {
-            background-color: #dcfce7;
-            color: #166534;
-        }
-        
-        .nav-link {
-            display: inline-block;
-            margin-bottom: 1rem;
-            color: var(--primary-color);
-            text-decoration: none;
-            font-weight: 500;
-        }
-        .nav-link:hover {
-            text-decoration: underline;
-        }
-    </style>
 </head>
 <body>
     <header class="header">
@@ -135,7 +29,7 @@
             </div>
             
             <div class="progress-bar-wrapper">
-                <div id="progressBar" class="progress-bar"></div>
+                <div id="progressBar" class="stt-progress-bar"></div>
             </div>
             
             <div class="status-text">

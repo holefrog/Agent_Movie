@@ -348,3 +348,111 @@ input[type="checkbox"]:disabled {
   border-color: #f59e0b;
   background-color: #fffbeb;
 }
+
+/* STT Scan Page Styles */
+.progress-container {
+  background-color: var(--card-bg, #ffffff);
+  border-radius: var(--radius-md, 8px);
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: var(--shadow-sm, 0 1px 2px 0 rgba(0, 0, 0, 0.05));
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.progress-bar-wrapper {
+  background-color: var(--border-color, #e2e8f0);
+  border-radius: var(--radius-sm, 6px);
+  height: 12px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.stt-progress-bar {
+  background-color: var(--primary-color, #6366f1);
+  height: 100%;
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+.status-text {
+  color: var(--text-secondary, #64748b);
+  font-size: 0.9rem;
+}
+
+.controls {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.btn-danger {
+  background-color: #ef4444;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-sm, 6px);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-danger:hover { background-color: #dc2626; }
+
+.results-container {
+  background-color: var(--card-bg, #ffffff);
+  border-radius: var(--radius-md, 8px);
+  padding: 2rem;
+  box-shadow: var(--shadow-sm, 0 1px 2px 0 rgba(0, 0, 0, 0.05));
+}
+
+/* 覆盖默认table样式 */
+.results-container table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.results-container th, .results-container td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+.results-container th {
+  font-weight: 600;
+  color: var(--text-secondary, #64748b);
+  background-color: var(--bg-color, #f8fafc);
+}
+
+.lang-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-right: 0.5rem;
+  margin-bottom: 0.25rem;
+  background-color: #f1f5f9;
+  color: #475569;
+}
+
+.lang-badge.zh {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.nav-link {
+  display: inline-block;
+  margin-bottom: 1rem;
+  color: var(--primary-color, #6366f1);
+  text-decoration: none;
+  font-weight: 500;
+}
+.nav-link:hover {
+  text-decoration: underline;
+}
