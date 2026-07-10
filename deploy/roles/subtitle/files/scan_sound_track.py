@@ -442,8 +442,11 @@ def scan_all_movies(api_key: str, media_paths: list[str]):
                 try:
                     audio_info = metadata.get_audio_tracks()
                     if audio_info.get("done"):
-                        stt_status["already_processed_count"] += 1
-                        continue
+                        sub_info = metadata.get_subtitles_assessment()
+                        # has_internal_chinese_sub 必须是 True/False 才算完成，None 表示未检测过
+                        if sub_info.get("has_internal_chinese_sub") is not None:
+                            stt_status["already_processed_count"] += 1
+                            continue
                 except Exception:
                     pass
             
