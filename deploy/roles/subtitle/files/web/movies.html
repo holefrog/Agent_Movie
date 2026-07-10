@@ -5,53 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Agent Movie - 影片管理</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <style>
-    /* 搜索和过滤工具栏样式 */
-    .filter-bar {
-      display: flex;
-      gap: 1rem;
-      margin-bottom: 1rem;
-      align-items: center;
-    }
-    .filter-input {
-      padding: 0.5rem;
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius-sm);
-      flex: 1;
-      max-width: 400px;
-      font-size: 1rem;
-    }
-    /* 整行点击样式 */
-    .movie-row {
-      cursor: pointer;
-      transition: background-color 0.2s;
-    }
-    .movie-row:hover {
-      background-color: #f8fafc;
-    }
-    .movie-row.selected {
-      background-color: #f0fdf4;
-    }
-    .movie-row.disabled {
-      cursor: not-allowed;
-      opacity: 0.6;
-    }
-    .checkbox-title-wrapper {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    .back-link {
-      display: inline-block;
-      margin-bottom: 1rem;
-      color: var(--primary-color);
-      text-decoration: none;
-      font-weight: bold;
-    }
-    .back-link:hover {
-      text-decoration: underline;
-    }
-  </style>
 </head>
 <body>
   <div class="container" style="max-width: 1200px;">

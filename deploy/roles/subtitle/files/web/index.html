@@ -66,7 +66,7 @@
       <div class="stage-card" id="stage5Card">
         <h3>Stage 5: 字幕补全</h3>
         <p id="stage5Status">等待中...</p>
-        <button id="btnStage5" class="btn btn-primary" onclick="window.location.href='/movies'" style="display:none;">📥 前往影片列表管理</button>
+        <button id="btnStage5" class="btn btn-primary" onclick="window.open('/movies', '_blank')" style="display:none;">📥 前往影片列表管理</button>
       </div>
 
       <div id="messageBox" style="margin-top: 1.5rem; padding: 1rem; border-radius: var(--radius-sm); display:none;"></div>
@@ -74,7 +74,7 @@
 
     <!-- 影片列表链接 -->
     <div id="moviesLinkContainer" style="display:none; margin-top: 2rem; text-align: center;">
-      <a href="/movies" class="btn btn-primary" style="font-size: 1.2rem; padding: 1rem 2rem;">查看并管理影片列表 (共 <span id="moviesCount">0</span> 部)</a>
+      <a href="/movies" target="_blank" class="btn btn-primary" style="font-size: 1.2rem; padding: 1rem 2rem;">查看并管理影片列表 (共 <span id="moviesCount">0</span> 部)</a>
     </div>
   </div>
 
