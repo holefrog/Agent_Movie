@@ -256,49 +256,37 @@ def scan_directory(media_path: str) -> list[dict]:
     # 用 set 记录已处理的目录，避免重复
     processed_dirs = set()
 
-    # 预先收集所有 nfo 路径，以便显示总数
-    all_nfo_paths = [
-        p for p in root.rglob("*.nfo")
-        if p.name.lower() not in ("sound_track.json", "language.nfo")
-    ]
-    # 去重：每个目录只算一次
+    # 预先收集所有 nfo 路径，以便提取目录
+    all_nfo_paths = list(root.rglob("*.nfo"))
+    
+    # 找到所有大于 100MB 的视频文件及其对应的 NFO 信息
     seen_dirs = set()
-    unique_nfo_paths = []
+    valid_videos = []
+    
     for p in all_nfo_paths:
-        if p.parent not in seen_dirs:
-            seen_dirs.add(p.parent)
-            unique_nfo_paths.append(p)
-
-    scan_status["total"] += len(unique_nfo_paths)
-
-    for nfo_path in unique_nfo_paths:
+        directory = p.parent
+        if directory not in seen_dirs:
+            seen_dirs.add(directory)
             
-        directory = nfo_path.parent
+            nfo_info = parse_nfo(p)
+            if not nfo_info:
+                continue
+                
+            # 找到该目录下所有大于 100MB 的视频文件
+            for f in directory.iterdir():
+                if f.is_file() and f.suffix.lower() in _VIDEO_EXTS:
+                    if f.stat().st_size > 100 * 1024 * 1024:
+                        valid_videos.append((f, nfo_info, directory))
 
-        if directory in processed_dirs:
-            continue
-        processed_dirs.add(directory)
+    scan_status["total"] += len(valid_videos)
 
+    for video_file, nfo_info, directory in valid_videos:
         # 更新扫描进度
         scan_status["current"] += 1
-        scan_status["current_movie"] = nfo_path.parent.name
-
-        nfo_info = parse_nfo(nfo_path)
-        if not nfo_info:
-            continue
-
-        # 找到该目录下的视频文件
-        video_files = [f for f in directory.iterdir()
-                       if f.is_file() and f.suffix.lower() in _VIDEO_EXTS]
-
-        if not video_files:
-            continue
-
-        # 提取主视频（选最大的视频文件作为主片）
-        main_video = max(video_files, key=lambda f: f.stat().st_size)
+        scan_status["current_movie"] = video_file.name
         
         # Stage 1: 写入影片信息到状态文件
-        metadata = Metadata(main_video)
+        metadata = Metadata(video_file)
         metadata.set_movie_info(
             title=nfo_info["title"],
             year=nfo_info["year"],
@@ -369,7 +357,7 @@ def scan_directory(media_path: str) -> list[dict]:
             "has_internal_chinese_sub": has_internal_chinese_sub,
             "has_english_sub": has_english_sub,
             "english_sub_path": english_sub_path,
-            "video_path": str(main_video),
+            "video_path": str(video_file),
             "directory": str(directory),
             "dirty_subs_count": len(dirty_subs)
         })
@@ -390,7 +378,7 @@ def normalize_subtitles(media_path: str) -> dict:
     
     # 排除状态文件（.json文件）
     for nfo_path in root.rglob("*.nfo"):
-        if nfo_path.name.lower().endswith(".json") or nfo_path.name.lower() == "language.nfo":
+        if nfo_path.name.lower().endswith(".json"):
             continue
             
         directory = nfo_path.parent
