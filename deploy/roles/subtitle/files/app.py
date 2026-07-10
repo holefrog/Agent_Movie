@@ -66,8 +66,17 @@ _ = load_config()
 
 @app.route("/")
 def index():
-    """渲染一个带有 Loading 的中间页，随后在浏览器里通过 ajax 抓取内容，避免网页白屏卡顿"""
-    return render_template("loading.html")
+    """直接返回主界面，在前端自动触发异步全库扫描"""
+    return render_template("index.html")
+
+@app.route("/api/start_scan", methods=["POST"])
+def api_start_scan():
+    """触发后台异步全库扫描"""
+    import scanner
+    config = load_config()
+    media_paths = config["scanner"]["media_paths"]
+    scanner.start_async_scan(media_paths)
+    return jsonify({"success": True})
 
 @app.route("/_index_content")
 def _index_content():

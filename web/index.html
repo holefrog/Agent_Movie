@@ -19,10 +19,22 @@
       <div class="stage-card" id="stage1Card">
         <h3>Stage 1: 媒体库扫描</h3>
         <p id="stage1Status">扫描中...</p>
+        <div id="stage1Progress" style="display:none; margin-top:1rem;">
+          <div class="loading-progress-bar-bg">
+            <div class="progress-bar-fill" id="stage1ProgressBar" style="width:0%"></div>
+          </div>
+          <p id="stage1ProgressText" style="margin-top:0.5rem; font-size:0.9rem; color:#64748b;"></p>
+        </div>
       </div>
       <div class="stage-card" id="stage2Card">
         <h3>Stage 2: 字幕评估</h3>
         <p id="stage2Status">等待中...</p>
+        <div id="stage2Progress" style="display:none; margin-top:1rem;">
+          <div class="loading-progress-bar-bg">
+            <div class="progress-bar-fill" id="stage2ProgressBar" style="width:0%; background:#8b5cf6;"></div>
+          </div>
+          <p id="stage2ProgressText" style="margin-top:0.5rem; font-size:0.9rem; color:#64748b;"></p>
+        </div>
       </div>
       <div class="stage-card" id="stage3Card">
         <h3>Stage 3: 字幕清洗</h3>
@@ -95,10 +107,19 @@
     let pollInterval = null;
     let movies = [];
 
-    // 页面加载完成后开始轮询
+    // 页面加载完成后开始轮询并触发扫描
     window.onload = function() {
+      startScan();
       startPolling();
     };
+
+    async function startScan() {
+      try {
+        await fetch('/api/start_scan', { method: 'POST' });
+      } catch (err) {
+        console.error("Failed to start scan:", err);
+      }
+    }
 
     function startPolling() {
       fetchPageStatus();
@@ -134,6 +155,18 @@
         } else {
           status.textContent = '⏸ 等待中';
         }
+      }
+
+      // 处理 Stage 1 & 2 扫描进度
+      const stage1Progress = document.getElementById('stage1Progress');
+      const stage2Progress = document.getElementById('stage2Progress');
+      if (current_stage === 1) {
+        stage1Progress.style.display = 'block';
+        stage2Progress.style.display = 'block';
+        fetchScanProgress();
+      } else {
+        stage1Progress.style.display = 'none';
+        stage2Progress.style.display = 'none';
       }
 
       // 更新消息框

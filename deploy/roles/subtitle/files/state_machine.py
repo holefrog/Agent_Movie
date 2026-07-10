@@ -37,22 +37,26 @@ class StateMachine:
     
     def scan_all_movies(self) -> List[Dict]:
         """
-        扫描所有媒体路径，获取影片列表
-        
-        Returns:
-            影片信息列表
+        获取影片列表
         """
         from scanner import get_all_movies
-        self.all_movies = get_all_movies(self.media_paths)
+        self.all_movies = get_all_movies(self.media_paths, force_refresh=False)
         return self.all_movies
     
     def compute_page_state(self) -> PageState:
         """
         计算当前页面状态
-        
-        Returns:
-            PageState对象
         """
+        import scanner
+        if scanner.scan_status["is_scanning"]:
+            return PageState(
+                current_stage=1,
+                is_blocking=False,
+                message="全库扫描正在后台进行中...",
+                stats={"total": 0, "stage1_done": 0, "stage2_done": 0},
+                movies=[]
+            )
+
         if not self.all_movies:
             self.scan_all_movies()
         

@@ -68,6 +68,9 @@ scan_status = {
     "error": None,
 }
 
+# 全局缓存扫描结果，避免重复执行长达数十秒的 I/O 扫描
+cached_all_movies = []
+
 
 
 def detect_subtitle_language(filepath: Path) -> str:
@@ -443,11 +446,15 @@ def normalize_subtitles(media_path: str) -> dict:
     }
 
 
-def get_all_movies(media_paths: list[str]) -> list[dict]:
+def get_all_movies(media_paths: list[str], force_refresh: bool = False) -> list[dict]:
     """
     扫描所有媒体路径，返回所有的影片列表。
-    扫描期间实时更新 scan_status 供前端轮询。
+    默认返回缓存的数据。如果 force_refresh 为 True 或缓存为空，则进行实际的磁盘扫描。
     """
+    global cached_all_movies
+    if cached_all_movies and not force_refresh:
+        return cached_all_movies
+
     # 重置进度状态
     scan_status["is_scanning"] = True
     scan_status["done"] = False
@@ -461,6 +468,7 @@ def get_all_movies(media_paths: list[str]) -> list[dict]:
         for path in media_paths:
             all_movies.extend(scan_directory(path))
         scan_status["done"] = True
+        cached_all_movies = all_movies  # 缓存结果
         return all_movies
     except Exception as e:
         scan_status["error"] = str(e)
@@ -468,3 +476,16 @@ def get_all_movies(media_paths: list[str]) -> list[dict]:
         raise
     finally:
         scan_status["is_scanning"] = False
+
+
+def start_async_scan(media_paths: list[str]):
+    """
+    后台异步启动全库扫描。
+    """
+    import threading
+    if scan_status["is_scanning"]:
+        return  # 已经在扫描中，防止重复触发
+
+    thread = threading.Thread(target=get_all_movies, args=(media_paths, True))
+    thread.daemon = True
+    thread.start()
