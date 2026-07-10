@@ -78,7 +78,11 @@ def _index_content():
         media_paths = config["scanner"]["media_paths"]
         all_movies = get_all_movies(media_paths)
         
-        missing_nfo_count = sum(1 for m in all_movies if m["is_chinese_audio"] is None)
+        # 统计音轨未真正识别的电影（done=False 或 done=True 但 tracks 为空）
+        missing_nfo_count = sum(
+            1 for m in all_movies
+            if m["is_chinese_audio"] is None
+        )
         # 统计含有脏字幕的【电影数】，而不是总文件数
         dirty_subs_movie_count = sum(1 for m in all_movies if m.get("dirty_subs_count", 0) > 0)
 

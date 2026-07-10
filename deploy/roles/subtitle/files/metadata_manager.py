@@ -75,7 +75,6 @@ class Metadata:
                 "has_chinese": False,
                 "has_english": False,
                 "has_garbage": False,
-                "has_internal_chinese_sub": None,
                 "error": None
             },
             "subtitles_cleanup": {
@@ -89,6 +88,12 @@ class Metadata:
                 "primary_language": "",
                 "is_chinese_audio": False,
                 "tracks": [],
+                "error": None
+            },
+            "subtitle_tracks": {
+                "done": False,
+                "has_internal_chinese_sub": None,
+                "streams": [],
                 "error": None
             },
             "subtitle_completion": {
@@ -228,15 +233,14 @@ class Metadata:
         data = self._load()
         return data["subtitles_cleanup"]
     
-    # ==================== Stage 4: 音轨识别 ====================
+    # ==================== Stage 4: 媒体语言鉴定 ====================
     
-    def set_audio_tracks(self, primary_language: str, is_chinese_audio: bool, has_internal_chinese_sub: bool | None, tracks: list, error: Optional[str] = None):
+    def set_audio_tracks(self, primary_language: str, is_chinese_audio: bool, tracks: list, error: Optional[str] = None):
         """设置音轨识别结果"""
         data = self._load()
         data["audio_tracks"]["done"] = True
         data["audio_tracks"]["primary_language"] = primary_language
         data["audio_tracks"]["is_chinese_audio"] = is_chinese_audio
-        data["audio_tracks"]["has_internal_chinese_sub"] = has_internal_chinese_sub
         data["audio_tracks"]["tracks"] = tracks
         data["audio_tracks"]["error"] = error
         self.save()
@@ -245,6 +249,20 @@ class Metadata:
         """获取音轨识别结果"""
         data = self._load()
         return data["audio_tracks"]
+    
+    def set_subtitle_tracks(self, has_internal_chinese_sub: bool | None, streams: list, error: Optional[str] = None):
+        """设置内置字幕流识别结果（Stage 4 运行）"""
+        data = self._load()
+        data["subtitle_tracks"]["done"] = True
+        data["subtitle_tracks"]["has_internal_chinese_sub"] = has_internal_chinese_sub
+        data["subtitle_tracks"]["streams"] = streams
+        data["subtitle_tracks"]["error"] = error
+        self.save()
+    
+    def get_subtitle_tracks(self) -> dict:
+        """获取内置字幕流识别结果"""
+        data = self._load()
+        return data["subtitle_tracks"]
     
     # ==================== Stage 5: 字幕补全 ====================
     

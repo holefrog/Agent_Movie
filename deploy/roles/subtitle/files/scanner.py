@@ -315,11 +315,12 @@ def scan_directory(media_path: str) -> list[dict]:
         if metadata.exists():
             try:
                 audio_info = metadata.get_audio_tracks()
-                if audio_info.get("done"):
+                # tracks 非空才视为真正完成了 Stage 4 音轨识别
+                if audio_info.get("done") and audio_info.get("tracks"):
                     is_chinese_audio = audio_info.get("is_chinese_audio", False)
-                # 内置中文字幕存在 subtitles_assessment 中
-                sub_info = metadata.get_subtitles_assessment()
-                has_internal_chinese_sub = sub_info.get("has_internal_chinese_sub")
+                # has_internal_chinese_sub 存在 subtitle_tracks 中（Stage 4 填充）
+                sub_tracks = metadata.get_subtitle_tracks()
+                has_internal_chinese_sub = sub_tracks.get("has_internal_chinese_sub")
             except Exception as e:
                 logger.warning(f"读取状态文件失败 {metadata.metadata_path.name}: {e}")
 

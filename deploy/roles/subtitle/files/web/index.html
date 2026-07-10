@@ -18,9 +18,9 @@
     {% if missing_nfo_count and missing_nfo_count > 0 %}
     <!-- Stage 1 Block -->
     <div style="margin-top: 2rem; background-color: #fff1f2; border: 2px dashed #f43f5e; padding: 2rem; text-align: center; border-radius: var(--radius-md);">
-      <h2 style="color: #be123c; margin-top: 0; font-size: 1.5rem;">⚠️ Stage 1: 必须先完成全库音轨体检</h2>
+      <h2 style="color: #be123c; margin-top: 0; font-size: 1.5rem;">⚠️ Stage 4: 必须先完成全库音轨体检</h2>
       <p style="color: #9f1239; font-size: 1.05rem; margin-bottom: 1.5rem;">
-        系统检测到有 <strong>{{ missing_nfo_count }}</strong> 部影片尚未生成音轨鉴定档案 (sound_track.json)。<br>
+        系统检测到有 <strong>{{ missing_nfo_count }}</strong> 部影片尚未生成视频状态档案（<code>[视频名].json</code>）。<br>
         在全库鉴定完成前，系统无法准确判断哪些电影是中文发音，因此<strong>已暂停所有的后续工作</strong>。
       </p>
       <a href="/stt_scan" style="display: inline-block; color: #fff; background-color: #e11d48; text-decoration: none; padding: 1rem 2.5rem; border-radius: var(--radius-sm); font-size: 1.2rem; font-weight: bold; transition: background-color 0.2s; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">

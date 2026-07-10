@@ -377,11 +377,9 @@ def build_language_nfo_for_video(video_path: Path, api_key: str) -> dict:
         
         metadata.set_video_info(duration)
         metadata.set_audio_tracks(primary_language, is_chinese_audio, result["audio_tracks"])
-        metadata.set_subtitles_assessment(
-            has_chinese=metadata.get_subtitles_assessment().get("has_chinese", False),
-            has_english=metadata.get_subtitles_assessment().get("has_english", False),
-            has_garbage=metadata.get_subtitles_assessment().get("has_garbage", False),
+        metadata.set_subtitle_tracks(
             has_internal_chinese_sub=has_internal_chinese_sub,
+            streams=result["subtitle_tracks"],
         )
         logger.info(f"已保存状态文件: {metadata.metadata_path.name}")
     except Exception as e:
@@ -445,10 +443,11 @@ def scan_all_movies(api_key: str, media_paths: list[str]):
             if metadata.exists():
                 try:
                     audio_info = metadata.get_audio_tracks()
-                    if audio_info.get("done"):
-                        sub_info = metadata.get_subtitles_assessment()
+                    # tracks 非空才视为真正完成了音轨识别
+                    if audio_info.get("done") and audio_info.get("tracks"):
+                        sub_tracks = metadata.get_subtitle_tracks()
                         # has_internal_chinese_sub 必须是 True/False 才算完成，None 表示未检测过
-                        if sub_info.get("has_internal_chinese_sub") is not None:
+                        if sub_tracks.get("has_internal_chinese_sub") is not None:
                             stt_status["already_processed_count"] += 1
                             continue
                 except Exception:
