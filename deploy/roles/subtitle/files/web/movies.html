@@ -21,11 +21,11 @@
       <table>
         <thead>
           <tr>
-            <th>标题</th>
-            <th style="white-space: nowrap; width: 60px;">年份</th>
-            <th style="white-space: nowrap; width: 80px;">语言</th>
-            <th style="white-space: nowrap; width: 80px;">中文字幕</th>
-            <th style="white-space: nowrap; width: 80px;">英文字幕</th>
+            <th class="sortable" onclick="setSort('title')">标题 <span id="sort-title">↕</span></th>
+            <th class="sortable" onclick="setSort('year')" style="white-space: nowrap; width: 60px;">年份 <span id="sort-year">↕</span></th>
+            <th class="sortable" onclick="setSort('languages')" style="white-space: nowrap; width: 80px;">语言 <span id="sort-languages">↕</span></th>
+            <th class="sortable" onclick="setSort('has_chinese_sub')" style="white-space: nowrap; width: 80px;">中文字幕 <span id="sort-has_chinese_sub">↕</span></th>
+            <th class="sortable" onclick="setSort('has_english_sub')" style="white-space: nowrap; width: 80px;">英文字幕 <span id="sort-has_english_sub">↕</span></th>
             <th style="white-space: nowrap; width: 100px;">备注</th>
           </tr>
         </thead>
@@ -55,6 +55,9 @@
     let allMovies = [];
     let filteredMovies = [];
     let selectedPaths = new Set();
+    
+    let currentSortField = 'title';
+    let currentSortOrder = 1; // 1 for asc, -1 for desc
     
     // 页面加载完成后获取数据
     window.onload = function() {
@@ -88,7 +91,42 @@
     function filterMovies() {
       const searchTerm = document.getElementById('searchInput').value.toLowerCase();
       filteredMovies = allMovies.filter(m => m.title.toLowerCase().includes(searchTerm));
+      
+      // 执行排序
+      filteredMovies.sort((a, b) => {
+        let valA = a[currentSortField];
+        let valB = b[currentSortField];
+        
+        // 特殊处理 bool 值
+        if (typeof valA === 'boolean') valA = valA ? 1 : 0;
+        if (typeof valB === 'boolean') valB = valB ? 1 : 0;
+        
+        if (valA < valB) return -1 * currentSortOrder;
+        if (valA > valB) return 1 * currentSortOrder;
+        return 0;
+      });
+
       renderMovies();
+    }
+
+    function setSort(field) {
+      if (currentSortField === field) {
+        currentSortOrder *= -1; // 切换升降序
+      } else {
+        currentSortField = field;
+        currentSortOrder = 1; // 默认升序
+      }
+      
+      // 更新表头箭头显示
+      document.querySelectorAll('th span[id^="sort-"]').forEach(span => {
+        span.textContent = '↕';
+      });
+      const currentSpan = document.getElementById(`sort-${field}`);
+      if (currentSpan) {
+        currentSpan.textContent = currentSortOrder === 1 ? '↑' : '↓';
+      }
+      
+      filterMovies();
     }
 
     function renderMovies() {

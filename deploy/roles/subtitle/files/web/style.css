@@ -446,6 +446,34 @@ input[type="checkbox"]:disabled {
   color: #166534;
 }
 
+.checkbox-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.back-link {
+  display: inline-block;
+  margin-bottom: 1rem;
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: bold;
+}
+.back-link:hover {
+  text-decoration: underline;
+}
+.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.sortable:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+.sortable span {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  margin-left: 0.2rem;
+}
+
 .nav-link {
   display: inline-block;
   margin-bottom: 1rem;
