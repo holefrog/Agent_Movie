@@ -57,17 +57,36 @@
   <script>
     // 页面加载完成后立即去后台请求真实的页面
     window.onload = function () {
+      const progressText = document.querySelector('.loading-container p');
+      
+      // 启动轮询获取扫描进度
+      const pollInterval = setInterval(() => {
+        fetch('/api/scan_progress')
+          .then(res => res.json())
+          .then(data => {
+            if (data.is_scanning) {
+              const current = data.current || 0;
+              const total = data.total || 0;
+              const movieName = data.current_movie || '...';
+              progressText.innerText = `正在扫描: ${movieName} (${current}/${total})`;
+            }
+          })
+          .catch(e => console.error("获取进度失败:", e));
+      }, 500);
+
       fetch('/_index_content')
         .then(response => {
           if (!response.ok) throw new Error('网络请求失败');
           return response.text();
         })
         .then(html => {
+          clearInterval(pollInterval);
           document.open();
           document.write(html);
           document.close();
         })
         .catch(err => {
+          clearInterval(pollInterval);
           document.querySelector('.loading-container').innerHTML =
             `<h2 style="color:#ef4444;">❌ 扫描失败</h2><p>${err.message}</p><button class="btn btn-primary" onclick="location.reload()" style="margin-top:1rem">重试</button>`;
         });

@@ -119,6 +119,17 @@ class Metadata:
             self._data["audio_tracks"]["tracks"] = old_tracks
             changed = True
             
+        # 清理历史遗留字段：从 audio_tracks 中移除 has_internal_chinese_sub
+        if "audio_tracks" in self._data and isinstance(self._data["audio_tracks"], dict):
+            if "has_internal_chinese_sub" in self._data["audio_tracks"]:
+                del self._data["audio_tracks"]["has_internal_chinese_sub"]
+                changed = True
+            if "tracks" in self._data["audio_tracks"] and isinstance(self._data["audio_tracks"]["tracks"], list):
+                for track in self._data["audio_tracks"]["tracks"]:
+                    if isinstance(track, dict) and "has_internal_chinese_sub" in track:
+                        del track["has_internal_chinese_sub"]
+                        changed = True
+            
         # 遍历所有空结构的键
         for key, default_val in empty.items():
             if key not in self._data:
@@ -139,6 +150,8 @@ class Metadata:
                         if sub_key not in self._data[key]:
                             self._data[key][sub_key] = sub_val
                             changed = True
+                            
+        # 删除不再使用的旧字段，或者不在 empty_structure 里的顶级冗余字段（可选）
                             
         version = self._data.get("version", 1)
         if version < 2:
