@@ -53,6 +53,17 @@ class StateMachine:
                 current_stage=1,
                 is_blocking=False,
                 message="全库扫描正在后台进行中...",
+                stats={"total": scanner.scan_status["total"], "stage1_done": scanner.scan_status["current"], "stage2_done": 0},
+                movies=[]
+            )
+            
+        if not scanner.cached_all_movies:
+            # 缓存为空，且当前没有在扫描，说明服务刚启动。直接触发后台异步扫描，不阻塞主线程。
+            scanner.start_async_scan(self.media_paths)
+            return PageState(
+                current_stage=1,
+                is_blocking=False,
+                message="准备开始全库扫描...",
                 stats={"total": 0, "stage1_done": 0, "stage2_done": 0},
                 movies=[]
             )
