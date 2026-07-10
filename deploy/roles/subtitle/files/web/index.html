@@ -214,12 +214,9 @@
       const stage4Progress = document.getElementById('stage4Progress');
       
       if (current_stage === 4) {
-        if (stats.not_identified > 0) {
-          btnStage4Start.style.display = 'inline-block';
-        }
         stage4Progress.style.display = 'block';
-        // 获取Stage 4进度
-        fetchStage4Progress();
+        // 获取Stage 4进度，由 fetchStage4Progress 统一处理按钮显示，避免闪烁
+        fetchStage4Progress(stats);
       } else {
         btnStage4Start.style.display = 'none';
         btnStage4Stop.style.display = 'none';
@@ -242,7 +239,7 @@
       }
     }
 
-    async function fetchStage4Progress() {
+    async function fetchStage4Progress(stats) {
       try {
         const res = await fetch('/api/stt_status');
         const data = await res.json();
@@ -263,7 +260,12 @@
           progressBar.style.width = `${percent}%`;
           progressText.textContent = `进度: ${processed} / ${total} ${data.current_movie ? `(${data.current_movie})` : ''}`;
         } else {
-          btnStage4Start.style.display = 'inline-block';
+          // 如果没有在运行，只有当还有未识别的电影时，才显示开始按钮
+          if (stats && stats.not_identified > 0) {
+            btnStage4Start.style.display = 'inline-block';
+          } else {
+            btnStage4Start.style.display = 'none';
+          }
           btnStage4Stop.style.display = 'none';
           progressBar.style.width = '100%';
           progressText.textContent = '已完成';
