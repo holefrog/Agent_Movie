@@ -115,47 +115,60 @@ class StateMachine:
             video_path = Path(movie["video_path"])
             metadata = Metadata(video_path)
             
-            # 统计各Stage完成情况
-            if metadata.is_done(1):
-                stats["stage1_done"] += 1
-            if metadata.is_done(2):
-                stats["stage2_done"] += 1
-                if metadata.get_error(2):
-                    stats["stage2_error"] += 1
-            if metadata.is_done(3):
-                stats["stage3_done"] += 1
-                if metadata.get_error(3):
-                    stats["stage3_error"] += 1
-            if metadata.is_done(4):
-                stats["stage4_done"] += 1
-                if metadata.get_error(4):
-                    stats["stage4_error"] += 1
-                # 统计中文音频
-                audio_info = metadata.get_audio_tracks()
-                if audio_info.get("is_chinese_audio"):
-                    stats["chinese_audio"] += 1
-            if metadata.is_done(5):
-                stats["stage5_done"] += 1
-                if metadata.get_error(5):
-                    stats["stage5_error"] += 1
+            # 优化：一次性读取文件，避免高频 I/O，尤其是在 NFS 网络存储上
+            if not metadata.exists():
+                # 为了防止文件真的不存在报错，我们 fallback
+                stats["not_identified"] += 1
+                continue
+                
+            try:
+                data = metadata.get_all_data()
+            except Exception:
+                stats["not_identified"] += 1
+                continue
             
-            # 统计需要清洗的影片
-            if metadata.is_done(2):
-                assessment = metadata.get_subtitles_assessment()
-                if assessment.get("has_garbage"):
+            # Stage 1
+            if bool(data["movie"]["title"] and data["movie"]["imdb_id"]):
+                stats["stage1_done"] += 1
+            
+            # Stage 2
+            if data["subtitles_assessment"]["done"]:
+                stats["stage2_done"] += 1
+                if data["subtitles_assessment"]["error"]:
+                    stats["stage2_error"] += 1
+                if data["subtitles_assessment"]["has_garbage"]:
                     stats["need_cleanup"] += 1
             
-            # 统计未识别音轨的影片
-            if not metadata.is_done(4):
+            # Stage 3
+            if data["subtitles_cleanup"]["done"]:
+                stats["stage3_done"] += 1
+                if data["subtitles_cleanup"]["error"]:
+                    stats["stage3_error"] += 1
+            
+            # Stage 4
+            is_st4_done = data["audio_tracks"]["done"]
+            if is_st4_done:
+                stats["stage4_done"] += 1
+                if data["audio_tracks"]["error"]:
+                    stats["stage4_error"] += 1
+                if data["audio_tracks"]["is_chinese_audio"]:
+                    stats["chinese_audio"] += 1
+            
+            # Stage 5
+            if data["subtitle_completion"]["done"]:
+                stats["stage5_done"] += 1
+                if data["subtitle_completion"]["error"]:
+                    stats["stage5_error"] += 1
+            
+            # 未识别音轨的影片
+            if not is_st4_done or not data["audio_tracks"].get("tracks"):
                 stats["not_identified"] += 1
             
-            # 统计需要字幕的影片（非中文音频且无中文字幕）
-            if metadata.is_done(4):
-                audio_info = metadata.get_audio_tracks()
-                completion = metadata.get_subtitle_completion()
-                if not audio_info.get("is_chinese_audio") and not completion.get("done"):
+            # 需要补全字幕的影片
+            if is_st4_done:
+                if not movie.get("has_external_chinese_sub") and not movie.get("has_internal_chinese_sub") and not movie.get("is_chinese_audio"):
                     stats["need_subtitle"] += 1
-        
+                    
         return stats
     
     def _determine_current_stage(self, stats: Dict) -> tuple:
