@@ -96,6 +96,21 @@ def _index_content():
         return render_template("index.html", error=str(e), movies=[], missing_nfo_count=0, dirty_subs_count=0)
 
 
+@app.route("/api/scan_progress")
+def api_scan_progress():
+    """返回当前全库扫描进度，供 loading.html 轮询"""
+    import scanner
+    s = scanner.scan_status
+    return jsonify({
+        "is_scanning": s["is_scanning"],
+        "current": s["current"],
+        "total": s["total"],
+        "current_movie": s["current_movie"],
+        "done": s["done"],
+        "error": s["error"],
+    })
+
+
 @app.route("/submit", methods=["POST"])
 def submit():
     """接收用户勾选的影片，逐个获取中文字幕"""

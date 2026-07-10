@@ -58,6 +58,16 @@ _CHINESE_LANG_KEYWORDS = {
 # 中文字幕文件名中常见的语言标识
 _CHINESE_SUB_TAGS = {".zh.", ".zh-cn.", ".zh-tw.", ".chi.", ".chs.", ".cht.", ".chinese."}
 
+# 全局扫描进度状态（供 loading.html 轮询）
+scan_status = {
+    "is_scanning": False,
+    "current_movie": "",
+    "current": 0,
+    "total": 0,
+    "done": False,
+    "error": None,
+}
+
 
 
 def detect_subtitle_language(filepath: Path) -> str:
@@ -248,15 +258,32 @@ def scan_directory(media_path: str) -> list[dict]:
     # 用 set 记录已处理的目录，避免重复
     processed_dirs = set()
 
-    for nfo_path in root.rglob("*.nfo"):
-        if nfo_path.name.lower() == "sound_track.json" or nfo_path.name.lower() == "language.nfo":
-            continue
+    # 预先收集所有 nfo 路径，以便显示总数
+    all_nfo_paths = [
+        p for p in root.rglob("*.nfo")
+        if p.name.lower() not in ("sound_track.json", "language.nfo")
+    ]
+    # 去重：每个目录只算一次
+    seen_dirs = set()
+    unique_nfo_paths = []
+    for p in all_nfo_paths:
+        if p.parent not in seen_dirs:
+            seen_dirs.add(p.parent)
+            unique_nfo_paths.append(p)
+
+    scan_status["total"] += len(unique_nfo_paths)
+
+    for nfo_path in unique_nfo_paths:
             
         directory = nfo_path.parent
 
         if directory in processed_dirs:
             continue
         processed_dirs.add(directory)
+
+        # 更新扫描进度
+        scan_status["current"] += 1
+        scan_status["current_movie"] = nfo_path.parent.name
 
         nfo_info = parse_nfo(nfo_path)
         if not nfo_info:
@@ -430,8 +457,25 @@ def normalize_subtitles(media_path: str) -> dict:
 def get_all_movies(media_paths: list[str]) -> list[dict]:
     """
     扫描所有媒体路径，返回所有的影片列表。
+    扫描期间实时更新 scan_status 供前端轮询。
     """
-    all_movies = []
-    for path in media_paths:
-        all_movies.extend(scan_directory(path))
-    return all_movies
+    # 重置进度状态
+    scan_status["is_scanning"] = True
+    scan_status["done"] = False
+    scan_status["error"] = None
+    scan_status["current"] = 0
+    scan_status["total"] = 0
+    scan_status["current_movie"] = ""
+
+    try:
+        all_movies = []
+        for path in media_paths:
+            all_movies.extend(scan_directory(path))
+        scan_status["done"] = True
+        return all_movies
+    except Exception as e:
+        scan_status["error"] = str(e)
+        scan_status["done"] = True
+        raise
+    finally:
+        scan_status["is_scanning"] = False
