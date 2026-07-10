@@ -66,6 +66,7 @@ scan_status = {
     "total": 0,
     "done": False,
     "error": None,
+    "results": [],
 }
 
 # 全局缓存扫描结果，避免重复执行长达数十秒的 I/O 扫描
@@ -352,7 +353,7 @@ def scan_directory(media_path: str) -> list[dict]:
             has_garbage=len(dirty_subs) > 0
         )
 
-        results.append({
+        movie_data = {
             "title": nfo_info["title"],
             "year": nfo_info["year"],
             "imdb_id": nfo_info["imdb_id"],
@@ -365,7 +366,9 @@ def scan_directory(media_path: str) -> list[dict]:
             "video_path": str(video_file),
             "directory": str(directory),
             "dirty_subs_count": len(dirty_subs)
-        })
+        }
+        results.append(movie_data)
+        scan_status["results"].append(movie_data)
 
     results.sort(key=lambda x: (-1 if x["is_chinese_audio"] is None else (1 if x["is_chinese_audio"] else 0), x["languages"], x["title"]))
     return results
@@ -462,6 +465,7 @@ def get_all_movies(media_paths: list[str], force_refresh: bool = False) -> list[
     scan_status["current"] = 0
     scan_status["total"] = 0
     scan_status["current_movie"] = ""
+    scan_status["results"] = []
 
     try:
         all_movies = []

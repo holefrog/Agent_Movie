@@ -49,13 +49,24 @@ class StateMachine:
         """
         import scanner
         if scanner.scan_status["is_scanning"]:
-            return PageState(
-                current_stage=1,
-                is_blocking=False,
-                message="全库扫描正在后台进行中...",
-                stats={"total": scanner.scan_status["total"], "stage1_done": scanner.scan_status["current"], "stage2_done": 0},
-                movies=[]
-            )
+            if scanner.scan_status["total"] == 0:
+                msg = "正在从视频文件目录（NAS）中极速检索文件结构，可能需要约 10 秒左右..."
+                return PageState(
+                    current_stage=0,
+                    is_blocking=False,
+                    message=msg,
+                    stats={"total": 0, "stage1_done": 0, "stage2_done": 0},
+                    movies=[]
+                )
+            else:
+                msg = f"全库扫描正在后台进行中... ({scanner.scan_status['current']}/{scanner.scan_status['total']})"
+                return PageState(
+                    current_stage=1,
+                    is_blocking=False,
+                    message=msg,
+                    stats={"total": scanner.scan_status["total"], "stage1_done": scanner.scan_status["current"], "stage2_done": 0},
+                    movies=[]
+                )
             
         if not scanner.cached_all_movies:
             # 缓存为空，且当前没有在扫描，说明服务刚启动。直接触发后台异步扫描，不阻塞主线程。

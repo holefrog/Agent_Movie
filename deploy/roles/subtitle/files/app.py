@@ -121,6 +121,7 @@ def api_scan_progress():
         "current_movie": s["current_movie"],
         "done": s["done"],
         "error": s["error"],
+        "results": s.get("results", [])
     })
 
 
