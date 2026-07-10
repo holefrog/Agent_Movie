@@ -219,7 +219,7 @@ class StateMachine:
         
         # Stage 4错误处理
         if stats["stage4_error"] > 0:
-            return 4, True, f"有 {stats['stage4_error']} 部影片音轨识别失败" + warning_msg
+            return 4, True, f"有 {stats['stage4_error']} 部影片深度扫描失败" + warning_msg
         
         # Stage 5: 如果需要字幕，显示Stage 5
         if stats["need_subtitle"] > 0:
