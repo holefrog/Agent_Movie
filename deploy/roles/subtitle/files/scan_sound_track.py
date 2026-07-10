@@ -11,6 +11,7 @@ from tempfile import NamedTemporaryFile
 import toml
 from retry import with_retry
 from metadata_manager import Metadata
+from scanner import detect_subtitle_language
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("scan_sound_track")
@@ -136,59 +137,40 @@ def get_subtitle_streams(video_path: Path) -> list[dict]:
         logger.warning(f"无法获取字幕流 {video_path.name}: {e}")
     return []
 
-def extract_subtitle_text(video_path: Path, stream_idx: int, start_seconds: int = 0) -> str:
-    """提取内置字幕的文本内容（从指定位置取2分钟，避免扫描整个大文件）"""
-    cmd = [
-        "ffmpeg", "-y",
-        "-ss", str(start_seconds),   # 跳到指定位置
-        "-t", "120",                  # 只读取 2 分钟
-        "-i", str(video_path),
-        "-map", f"0:s:{stream_idx}",
-        "-f", "srt",
-        "-"
-    ]
-    try:
-        res = subprocess.run(cmd, capture_output=True, timeout=15)
-        # ffmpeg 截断输出时可能返回非零，只要 stdout 有内容就尝试解析
-        if res.stdout:
-            return res.stdout.decode("utf-8", errors="ignore")
-    except Exception as e:
-        logger.warning(f"提取字幕文本失败 (stream {stream_idx} @ {start_seconds}s): {e}")
-    return ""
-
-def detect_chinese_in_subtitle(text: str) -> bool:
-    """检测字幕文本是否包含中文"""
-    if not text:
-        return False
-    
-    # 提取纯文本（去掉 SRT 序号、时间戳等）
-    import re
-    clean = re.sub(r"\d+\n\d{2}:\d{2}:\d{2}.*?-->\s*.*?\n", "", text)
-    clean = re.sub(r"\{[^}]*\}", "", clean)  # ASS 样式标签
-    clean = re.sub(r"<[^>]*>", "", clean)     # HTML 标签
-    
-    # 统计 CJK 字符数量
-    cjk_count = sum(1 for ch in clean if "\u4e00" <= ch <= "\u9fff")
-    
-    return cjk_count > 10
-
 def check_internal_chinese_subtitle(video_path: Path, subtitle_streams: list[dict]) -> bool | None:
-    """检查是否有内置中文字幕（通过内容检测，多点采样）"""
+    """检查是否有内置中文字幕（导出字幕到tmp并用统一函数检测）"""
     if not subtitle_streams:
         return None
     
-    # 多点采样：片头可能全是音乐/黑屏，需要往后采样
-    # 0分钟、10分钟、20分钟、30分钟，任一段有中文即认定
-    sample_offsets = [0, 600, 1200, 1800]
-    
     for stream in subtitle_streams:
         stream_idx = stream["index"]
-        for offset in sample_offsets:
-            text = extract_subtitle_text(video_path, stream_idx, start_seconds=offset)
-            if detect_chinese_in_subtitle(text):
-                logger.info(f"检测到内置中文字幕 (stream {stream_idx} @ {offset}s): {video_path.name}")
-                return True
-    
+        
+        with NamedTemporaryFile(dir="/tmp", suffix=".txt", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+            
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", str(video_path),
+            "-map", f"0:s:{stream_idx}",
+            "-f", "srt",
+            str(tmp_path)
+        ]
+        
+        try:
+            # 完整导出字幕流，防止只读取文件开头时片头全为音乐/无对白导致误判
+            subprocess.run(cmd, capture_output=True, timeout=60)
+            
+            if tmp_path.exists() and tmp_path.stat().st_size > 0:
+                lang = detect_subtitle_language(tmp_path)
+                if lang in ("zh-CN", "zh-TW"):
+                    logger.info(f"检测到内置中文字幕 (stream {stream_idx}): {video_path.name}")
+                    return True
+        except Exception as e:
+            logger.warning(f"检测内置字幕失败 (stream {stream_idx}): {e}")
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink()
+                
     return False
 
 def extract_audio_segment(video_path: Path, stream_idx: int, start_time: float, output_path: Path) -> bool:

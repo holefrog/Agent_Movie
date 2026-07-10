@@ -90,8 +90,6 @@ def detect_subtitle_language(filepath: Path) -> str:
             # 如果全失败，用 utf-8 ignore 强行读取
             text = raw_bytes.decode("utf-8", errors="ignore")
             
-        text = text[:2048]
-
         # 提取纯文本（去掉 SRT 序号、时间戳、ASS 标签等）
         clean = re.sub(r"\d+\n\d{2}:\d{2}:\d{2}.*?-->.*?\n", "", text)
         clean = re.sub(r"\{[^}]*\}", "", clean)  # ASS 样式标签
