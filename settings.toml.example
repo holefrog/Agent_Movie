@@ -1,0 +1,46 @@
+# Agent_Movie Settings - Configuration file
+# Copy this file to settings.toml and fill in your values
+
+[provider]
+translate = "groq"  # Options: gemini, openai, mistral, groq, nvidia
+
+[scanner]
+media_paths = ["/path/to/your/movies"]
+video_exts = [".mkv", ".mp4", ".avi", ".wmv", ".flv", ".mov", ".ts", ".rmvb"]
+sub_exts = [".srt", ".ass", ".ssa"]
+
+[opensubtitles]
+api_key = "your_opensubtitles_api_key"
+username = "your_opensubtitles_username"
+password = "your_opensubtitles_password"
+
+[translate.common]
+system_prompt = """你是专业的电影字幕翻译员。将英文字幕翻译为自然流畅的简体中文。
+保持 [序号] 格式不变，只翻译文本内容。翻译要符合中文观影习惯，不要直译。"""
+timeout = 120
+batch_size = 50
+temperature = 0.3
+
+[translate.gemini]
+api_key = "your_gemini_api_key"
+model = "gemini-1.5-pro"
+
+[translate.openai]
+api_key = "your_openai_api_key"
+model = "gpt-4"
+
+[translate.mistral]
+api_key = "your_mistral_api_key"
+model = "mistral-large-latest"
+
+[translate.groq]
+api_key = "your_groq_api_key"
+model = "llama3-70b-8192"
+
+[translate.nvidia]
+api_key = "your_nvidia_api_key"
+model = "meta/llama-3.1-405b-instruct"
+
+[web]
+host = "0.0.0.0"
+port = 5000
