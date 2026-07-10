@@ -152,13 +152,14 @@ def check_internal_chinese_subtitle(video_path: Path, subtitle_streams: list[dic
             "ffmpeg", "-y",
             "-i", str(video_path),
             "-map", f"0:s:{stream_idx}",
+            "-frames:s", "100",
             "-f", "srt",
             str(tmp_path)
         ]
         
         try:
-            # 完整导出字幕流，防止只读取文件开头时片头全为音乐/无对白导致误判
-            subprocess.run(cmd, capture_output=True, timeout=60)
+            # 只导出前 100 句字幕进行检测，极大提升速度并防止超时
+            subprocess.run(cmd, capture_output=True, timeout=10)
             
             if tmp_path.exists() and tmp_path.stat().st_size > 0:
                 lang = detect_subtitle_language(tmp_path)
