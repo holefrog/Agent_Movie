@@ -125,23 +125,67 @@ def get_subtitle_streams(video_path: Path) -> list[dict]:
                 lang = tags.get("language", "")
                 title = tags.get("title", "")
                 
-                # 判断是否为中文字幕
-                is_chinese = False
-                if lang.lower() in ("zh", "chi", "zho"):
-                    is_chinese = True
-                elif any(keyword in title.lower() for keyword in ("zh", "中", "简", "繁", "chi")):
-                    is_chinese = True
-                
                 streams.append({
                     "index": index,
                     "codec": codec,
-                    "lang": "zh" if is_chinese else lang,
+                    "lang": lang,
                     "title": title
                 })
             return streams
     except Exception as e:
         logger.warning(f"无法获取字幕流 {video_path.name}: {e}")
     return []
+
+def extract_subtitle_text(video_path: Path, stream_idx: int) -> str:
+    """提取内置字幕的文本内容"""
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", str(video_path),
+        "-map", f"0:s:{stream_idx}",
+        "-f", "srt",
+        "-"
+    ]
+    try:
+        res = subprocess.run(cmd, capture_output=True, timeout=30)
+        if res.returncode == 0:
+            return res.stdout.decode("utf-8", errors="ignore")
+    except Exception as e:
+        logger.warning(f"提取字幕文本失败 (stream {stream_idx}): {e}")
+    return ""
+
+def detect_chinese_in_subtitle(text: str) -> bool:
+    """检测字幕文本是否包含中文"""
+    if not text:
+        return False
+    
+    # 提取纯文本（去掉 SRT 序号、时间戳等）
+    import re
+    clean = re.sub(r"\d+\n\d{2}:\d{2}:\d{2}.*?-->.*?\n", "", text)
+    clean = re.sub(r"\{[^}]*\}", "", clean)  # ASS 样式标签
+    clean = re.sub(r"<[^>]*>", "", clean)     # HTML 标签
+    
+    # 统计 CJK 字符数量
+    cjk_count = sum(1 for ch in clean if "\u4e00" <= ch <= "\u9fff")
+    
+    # 如果前 2KB 中包含一定数量的中文字符（如大于 10 个），即判定为中文字幕
+    if cjk_count > 10:
+        return True
+    
+    return False
+
+def check_internal_chinese_subtitle(video_path: Path, subtitle_streams: list[dict]) -> bool | None:
+    """检查是否有内置中文字幕（通过内容检测）"""
+    if not subtitle_streams:
+        return None
+    
+    for stream in subtitle_streams:
+        stream_idx = stream["index"]
+        text = extract_subtitle_text(video_path, stream_idx)
+        if detect_chinese_in_subtitle(text):
+            logger.info(f"检测到内置中文字幕 (stream {stream_idx}): {video_path.name}")
+            return True
+    
+    return False
 
 def extract_audio_segment(video_path: Path, stream_idx: int, start_time: float, output_path: Path) -> bool:
     # 截取 15 秒音频
@@ -298,6 +342,9 @@ def build_language_nfo_for_video(video_path: Path, api_key: str) -> dict:
     subtitle_streams = get_subtitle_streams(video_path)
     result["subtitle_tracks"] = subtitle_streams
     
+    # 检查内置中文字幕（通过内容检测）
+    has_internal_chinese_sub = check_internal_chinese_subtitle(video_path, subtitle_streams)
+    
     if existing_audio_tracks is not None:
         logger.info(f"直接复用已有的音频分析结果: {video_path.name}")
         result["audio_tracks"] = existing_audio_tracks
@@ -325,7 +372,7 @@ def build_language_nfo_for_video(video_path: Path, api_key: str) -> dict:
             is_chinese_audio = primary_language == "zh"
         
         metadata.set_video_info(duration)
-        metadata.set_audio_tracks(primary_language, is_chinese_audio, result["audio_tracks"])
+        metadata.set_audio_tracks(primary_language, is_chinese_audio, has_internal_chinese_sub, result["audio_tracks"])
         logger.info(f"已保存状态文件: {metadata.metadata_path.name}")
     except Exception as e:
         logger.error(f"保存状态文件失败: {e}")
