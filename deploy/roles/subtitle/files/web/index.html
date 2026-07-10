@@ -17,26 +17,26 @@
 
     {% if missing_nfo_count and missing_nfo_count > 0 %}
     <!-- Stage 1 Block -->
-    <div style="margin-top: 2rem; background-color: #fff1f2; border: 2px dashed #f43f5e; padding: 2rem; text-align: center; border-radius: var(--radius-md);">
-      <h2 style="color: #be123c; margin-top: 0; font-size: 1.5rem;">⚠️ Stage 4: 必须先完成全库音轨体检</h2>
-      <p style="color: #9f1239; font-size: 1.05rem; margin-bottom: 1.5rem;">
+    <div class="alert-box stage-1">
+      <h2>⚠️ Stage 4: 必须先完成全库音轨体检</h2>
+      <p>
         系统检测到有 <strong>{{ missing_nfo_count }}</strong> 部影片尚未生成视频状态档案（<code>[视频名].json</code>）。<br>
         在全库鉴定完成前，系统无法准确判断哪些电影是中文发音，因此<strong>已暂停所有的后续工作</strong>。
       </p>
-      <a href="/stt_scan" style="display: inline-block; color: #fff; background-color: #e11d48; text-decoration: none; padding: 1rem 2.5rem; border-radius: var(--radius-sm); font-size: 1.2rem; font-weight: bold; transition: background-color 0.2s; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <a href="/stt_scan" class="btn-action stage-1-btn">
         👉 前往监控中心，一键强制建库
       </a>
     </div>
 
     {% elif dirty_subs_count and dirty_subs_count > 0 %}
     <!-- Stage 2 Block -->
-    <div style="margin-top: 2rem; background-color: #fffbeb; border: 2px dashed #fbbf24; padding: 2rem; text-align: center; border-radius: var(--radius-md);">
-      <h2 style="color: #b45309; margin-top: 0; font-size: 1.5rem;">🧹 Stage 2: 发现未规范命名的脏字幕</h2>
-      <p style="color: #92400e; font-size: 1.05rem; margin-bottom: 1.5rem;">
+    <div class="alert-box stage-2">
+      <h2>🧹 Stage 2: 发现未规范命名的脏字幕</h2>
+      <p>
         音轨鉴定已完成，但系统检测到有 <strong>{{ dirty_subs_count }}</strong> 部电影包含命名不规范的字幕文件或极小的垃圾广告。<br>
         请点击下方按钮，系统将自动读取内容识别语言，并统一重命名（如改成 .zh-CN.srt），完成后方可进入翻译阶段。
       </p>
-      <button id="btnRenameSubs" onclick="triggerRename()" style="display: inline-block; color: #fff; background-color: #d97706; text-decoration: none; border: none; padding: 1rem 2.5rem; border-radius: var(--radius-sm); font-size: 1.2rem; font-weight: bold; cursor: pointer; transition: background-color 0.2s; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <button id="btnRenameSubs" onclick="triggerRename()" class="btn-action stage-2-btn">
         🧼 一键清洗并重命名脏字幕
       </button>
       <p id="renameProgress" style="display:none; color: #b45309; font-weight: bold; margin-top: 1rem;">正在拼命清理中，请稍候...（不要关闭页面）</p>

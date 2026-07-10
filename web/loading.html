@@ -6,90 +6,119 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Agent Movie - 正在扫描媒体库</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <style>
-    .loading-container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 60vh;
-      color: var(--text-color);
-    }
-
-    .spinner {
-      width: 50px;
-      height: 50px;
-      border: 5px solid #e2e8f0;
-      border-top-color: var(--primary-color);
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-      margin-bottom: 2rem;
-    }
-
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-
-    h2 {
-      margin: 0;
-      color: #334155;
-    }
-
-    p {
-      color: #64748b;
-      margin-top: 1rem;
-    }
-  </style>
 </head>
 
 <body>
   <div class="container">
     <h1>🎬 中文字幕获取</h1>
-    <div class="loading-container">
-      <div class="spinner"></div>
-      <h2>正在全库扫描，请稍候...</h2>
-      <p>系统正在检查所有电影和字幕的状态，需要一点时间</p>
+    <div class="scan-container">
+      <div class="scan-icon">🔍</div>
+      <h2 class="scan-title" id="scan-title">正在扫描媒体库...</h2>
+      <p class="scan-subtitle" id="scan-subtitle">正在读取影片元数据和字幕状态</p>
+
+      <!-- Stage 1 进度 -->
+      <div class="progress-wrap" id="progress-wrap" style="display:none">
+        <div style="font-size:0.82rem; color:#475569; margin-bottom:0.4rem; font-weight:600;">
+          Stage 1 &middot; 媒体库扫描
+        </div>
+        <div class="loading-progress-bar-bg">
+          <div class="progress-bar-fill" id="progress-fill"></div>
+        </div>
+        <div class="progress-label">
+          <span id="progress-text">0 / 0</span>
+          <span id="progress-pct">0%</span>
+        </div>
+      </div>
+
+      <!-- Stage 2 进度（与 Stage 1 同步，同一循环完成） -->
+      <div class="progress-wrap" id="progress-wrap-2" style="display:none; margin-top:1rem">
+        <div style="font-size:0.82rem; color:#475569; margin-bottom:0.4rem; font-weight:600;">
+          Stage 2 &middot; 字幕评估
+        </div>
+        <div class="loading-progress-bar-bg">
+          <div class="progress-bar-fill" id="progress-fill-2" style="background: #8b5cf6;"></div>
+        </div>
+        <div class="progress-label">
+          <span id="progress-text-2">0 / 0</span>
+          <span id="progress-pct-2">0%</span>
+        </div>
+      </div>
+
+      <div class="current-movie" id="current-movie"></div>
+
+      <div class="error-box" id="error-box" style="display:none"></div>
     </div>
   </div>
 
   <script>
-    // 页面加载完成后立即去后台请求真实的页面
-    window.onload = function () {
-      const progressText = document.querySelector('.loading-container p');
-      
-      // 启动轮询获取扫描进度
-      const pollInterval = setInterval(() => {
-        fetch('/api/scan_progress')
-          .then(res => res.json())
-          .then(data => {
-            if (data.is_scanning) {
-              const current = data.current || 0;
-              const total = data.total || 0;
-              const movieName = data.current_movie || '...';
-              progressText.innerText = `正在扫描: ${movieName} (${current}/${total})`;
-            }
-          })
-          .catch(e => console.error("获取进度失败:", e));
-      }, 500);
+    let pollTimer = null;
 
+    function updateProgress(data) {
+      const total = data.total || 0;
+      const current = data.current || 0;
+      const pct = total > 0 ? Math.min(100, Math.round(current / total * 100)) : 0;
+      const movieName = data.current_movie || '';
+
+      // 显示进度条（总数已知时）
+      if (total > 0) {
+        // Stage 1 进度条
+        document.getElementById('progress-wrap').style.display = '';
+        document.getElementById('progress-fill').style.width = pct + '%';
+        document.getElementById('progress-text').textContent = current + ' / ' + total;
+        document.getElementById('progress-pct').textContent = pct + '%';
+        // Stage 2 进度条（同步推进）
+        document.getElementById('progress-wrap-2').style.display = '';
+        document.getElementById('progress-fill-2').style.width = pct + '%';
+        document.getElementById('progress-text-2').textContent = current + ' / ' + total;
+        document.getElementById('progress-pct-2').textContent = pct + '%';
+
+        document.getElementById('scan-title').textContent = '正在扫描媒体库...';
+        document.getElementById('scan-subtitle').textContent = `共 ${total} 部影片，Stage 1 & 2 在同一循环中完成`;
+      } else if (data.is_scanning) {
+        document.getElementById('scan-subtitle').textContent = '正在收集影片列表，请稍候...';
+      }
+
+      // 当前电影名
+      if (movieName) {
+        document.getElementById('current-movie').innerHTML =
+          '<span class="spinner-small"></span>' + movieName;
+      }
+    }
+
+    function showError(msg) {
+      clearInterval(pollTimer);
+      document.getElementById('scan-title').textContent = '扫描失败';
+      document.getElementById('scan-subtitle').textContent = '';
+      document.getElementById('current-movie').textContent = '';
+      const errBox = document.getElementById('error-box');
+      errBox.style.display = '';
+      errBox.innerHTML = '❌ ' + msg +
+        '<br><button class="btn btn-primary" onclick="location.reload()" style="margin-top:0.75rem">重试</button>';
+    }
+
+    function poll() {
+      fetch('/api/scan_progress')
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) { showError(data.error); return; }
+          updateProgress(data);
+        })
+        .catch(() => { /* 网络抖动静默忽略 */ });
+    }
+
+    window.onload = function () {
+      // 开始轮询进度（每 400ms 一次）
+      poll();
+      pollTimer = setInterval(poll, 400);
+
+      // 阻塞式内容请求：扫描完成后后端才返回，直接替换页面
       fetch('/_index_content')
-        .then(response => {
-          if (!response.ok) throw new Error('网络请求失败');
-          return response.text();
-        })
+        .then(r => { if (!r.ok) throw new Error('网络请求失败'); return r.text(); })
         .then(html => {
-          clearInterval(pollInterval);
-          document.open();
-          document.write(html);
-          document.close();
+          clearInterval(pollTimer);
+          document.open(); document.write(html); document.close();
         })
-        .catch(err => {
-          clearInterval(pollInterval);
-          document.querySelector('.loading-container').innerHTML =
-            `<h2 style="color:#ef4444;">❌ 扫描失败</h2><p>${err.message}</p><button class="btn btn-primary" onclick="location.reload()" style="margin-top:1rem">重试</button>`;
-        });
+        .catch(err => showError(err.message));
     };
   </script>
 </body>
