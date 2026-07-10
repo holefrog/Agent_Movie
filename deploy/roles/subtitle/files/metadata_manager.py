@@ -163,18 +163,29 @@ class Metadata:
             self.save()
     
     def save(self):
-        """保存状态文件到磁盘"""
+        """保存状态文件到磁盘（使用原子替换，解决并发读取到空文件的问题）"""
         if self._data is None:
             return
         
         try:
             self._data["last_updated"] = self._get_current_timestamp()
             
-            # 使用文件锁确保并发安全
-            with open(self.metadata_path, 'w', encoding='utf-8') as f:
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                json.dump(self._data, f, indent=2, ensure_ascii=False)
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            import tempfile
+            import os
+            # 使用相同目录以确保 rename 在同一个文件系统上（特别是在 NAS/NFS 环境）
+            fd, tmp_path = tempfile.mkstemp(dir=self.metadata_path.parent, prefix=".", suffix=".tmp")
+            try:
+                with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                    json.dump(self._data, f, indent=2, ensure_ascii=False)
+                    f.flush()
+                    os.fsync(f.fileno())  # 确保数据真正落盘
+                # 原子替换目标文件
+                os.replace(tmp_path, self.metadata_path)
+            except Exception as inner_e:
+                # 出现异常时清理临时文件
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+                raise inner_e
             
             logger.debug(f"保存状态文件成功: {self.metadata_path.name}")
         except Exception as e:

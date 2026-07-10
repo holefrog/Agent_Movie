@@ -159,7 +159,7 @@ def check_internal_chinese_subtitle(video_path: Path, subtitle_streams: list[dic
         
         try:
             # 只导出前 100 句字幕进行检测，极大提升速度并防止超时
-            subprocess.run(cmd, capture_output=True, timeout=10)
+            subprocess.run(cmd, capture_output=True, timeout=60)
             
             if tmp_path.exists() and tmp_path.stat().st_size > 0:
                 lang = detect_subtitle_language(tmp_path)
