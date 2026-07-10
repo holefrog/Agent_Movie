@@ -251,6 +251,38 @@
       }
     }
 
+    async function fetchScanProgress() {
+      try {
+        const res = await fetch('/api/scan_progress');
+        const data = await res.json();
+
+        const p1Bar = document.getElementById('stage1ProgressBar');
+        const p1Text = document.getElementById('stage1ProgressText');
+        const p2Bar = document.getElementById('stage2ProgressBar');
+        const p2Text = document.getElementById('stage2ProgressText');
+
+        if (data.is_scanning) {
+          const current = data.current || 0;
+          const total = data.total || 1;
+          const percent = Math.min((current / total) * 100, 100).toFixed(1);
+          
+          p1Bar.style.width = `${percent}%`;
+          p1Text.textContent = `正在扫描: ${data.current_movie} (${current}/${total})`;
+          
+          // Stage 2 is technically happening together with Stage 1 in scanner
+          p2Bar.style.width = `${percent}%`;
+          p2Text.textContent = `正在评估字幕状态...`;
+        } else {
+          p1Bar.style.width = '100%';
+          p1Text.textContent = '扫描完成';
+          p2Bar.style.width = '100%';
+          p2Text.textContent = '评估完成';
+        }
+      } catch (err) {
+        console.error("Failed to fetch scan progress:", err);
+      }
+    }
+
     async function triggerStage3() {
       const btn = document.getElementById('btnStage3');
       btn.disabled = true;
