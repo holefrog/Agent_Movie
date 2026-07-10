@@ -253,37 +253,39 @@ def scan_directory(media_path: str) -> list[dict]:
         return []
 
     results = []
-    # 用 set 记录已处理的目录，避免重复
-    processed_dirs = set()
-
-    # 预先收集所有 nfo 路径，以便提取目录
-    all_nfo_paths = list(root.rglob("*.nfo"))
-    
-    # 找到所有大于 100MB 的视频文件及其对应的 NFO 信息
-    seen_dirs = set()
+    # 递归查找所有大于 100MB 的视频文件
     valid_videos = []
-    
-    for p in all_nfo_paths:
-        directory = p.parent
-        if directory not in seen_dirs:
-            seen_dirs.add(directory)
-            
-            nfo_info = parse_nfo(p)
-            if not nfo_info:
-                continue
-                
-            # 找到该目录下所有大于 100MB 的视频文件
-            for f in directory.iterdir():
-                if f.is_file() and f.suffix.lower() in _VIDEO_EXTS:
-                    if f.stat().st_size > 100 * 1024 * 1024:
-                        valid_videos.append((f, nfo_info, directory))
+    for f in root.rglob("*"):
+        if f.is_file() and f.suffix.lower() in _VIDEO_EXTS:
+            if f.stat().st_size > 100 * 1024 * 1024:
+                valid_videos.append(f)
 
     scan_status["total"] += len(valid_videos)
 
-    for video_file, nfo_info, directory in valid_videos:
+    for video_file in valid_videos:
+        directory = video_file.parent
+        
         # 更新扫描进度
         scan_status["current"] += 1
         scan_status["current_movie"] = video_file.name
+
+        # 尝试寻找该视频对应的 NFO 文件以获取元数据
+        nfo_path = video_file.with_suffix(".nfo")
+        if not nfo_path.exists():
+            nfo_path = directory / "movie.nfo"
+            
+        nfo_info = None
+        if nfo_path.exists():
+            nfo_info = parse_nfo(nfo_path)
+            
+        if not nfo_info:
+            # 如果没找到 NFO，使用文件名作为备选
+            nfo_info = {
+                "title": video_file.stem,
+                "year": "",
+                "imdb_id": "",
+                "languages": ""
+            }
         
         # Stage 1: 写入影片信息到状态文件
         metadata = Metadata(video_file)
