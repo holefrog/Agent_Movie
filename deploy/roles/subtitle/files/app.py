@@ -82,11 +82,12 @@ def _index_content():
         # 统计含有脏字幕的【电影数】，而不是总文件数
         dirty_subs_movie_count = sum(1 for m in all_movies if m.get("dirty_subs_count", 0) > 0)
 
-        # 只要满足不含中文字幕，就全部作为“需处理影片”列出
+        # 需要下载字幕：没有外挂中文字幕、没有中文音轨、没有内置中文字幕
         movies = [
             m for m in all_movies 
-            if not m["has_external_chinese_sub"] 
-            and not m["has_internal_chinese_sub"] 
+            if not m["has_external_chinese_sub"]      # 无外挂中文字幕
+            and not m["is_chinese_audio"]              # 无中文音轨
+            and not m["has_internal_chinese_sub"]      # 无内置中文字幕
         ]
         
         return render_template("index.html", movies=movies, missing_nfo_count=missing_nfo_count, dirty_subs_count=dirty_subs_movie_count)
