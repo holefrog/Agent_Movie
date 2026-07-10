@@ -150,49 +150,52 @@ class StateMachine:
     def _determine_current_stage(self, stats: Dict) -> tuple:
         """
         判断当前应该显示哪个Stage
-        
-        Args:
-            stats: 统计信息
-        
-        Returns:
-            (current_stage, is_blocking, message)
         """
         total = stats["total"]
+        valid_total = stats["stage1_done"]
         
         # Stage 1: 如果没有影片信息，显示Stage 1
-        if stats["stage1_done"] < total:
-            return 1, False, f"正在扫描媒体库... ({stats['stage1_done']}/{total})"
+        if valid_total < total:
+            import scanner
+            if scanner.scan_status["is_scanning"]:
+                return 1, False, f"正在扫描媒体库... ({valid_total}/{total})"
         
+        warning_msg = ""
+        if valid_total < total and not scanner.scan_status["is_scanning"]:
+            warning_msg = f" (注：有 {total - valid_total} 部影片无元数据被跳过)"
+
         # Stage 2: 如果未评估字幕，显示Stage 2
-        if stats["stage2_done"] < total:
-            return 2, False, f"正在评估字幕... ({stats['stage2_done']}/{total})"
+        if stats["stage2_done"] < valid_total:
+            import scanner
+            if scanner.scan_status["is_scanning"]:
+                return 2, False, f"正在评估字幕... ({stats['stage2_done']}/{valid_total})"
         
         # Stage 3: 如果需要清洗，显示Stage 3（阻塞）
         if stats["need_cleanup"] > 0:
-            return 3, True, f"发现 {stats['need_cleanup']} 部影片需要清洗字幕"
+            return 3, True, f"发现 {stats['need_cleanup']} 部影片需要清洗字幕" + warning_msg
         
         # Stage 3错误处理
         if stats["stage3_error"] > 0:
-            return 3, True, f"有 {stats['stage3_error']} 部影片清洗失败，请手动处理"
+            return 3, True, f"有 {stats['stage3_error']} 部影片清洗失败，请手动处理" + warning_msg
         
         # Stage 4: 如果未识别音轨，显示Stage 4
         if stats["not_identified"] > 0:
-            return 4, True, f"有 {stats['not_identified']} 部影片需要识别音轨"
+            return 4, True, f"有 {stats['not_identified']} 部影片需要识别音轨" + warning_msg
         
         # Stage 4错误处理
         if stats["stage4_error"] > 0:
-            return 4, True, f"有 {stats['stage4_error']} 部影片音轨识别失败"
+            return 4, True, f"有 {stats['stage4_error']} 部影片音轨识别失败" + warning_msg
         
         # Stage 5: 如果需要字幕，显示Stage 5
         if stats["need_subtitle"] > 0:
-            return 5, False, f"有 {stats['need_subtitle']} 部影片需要补全字幕"
+            return 5, False, f"有 {stats['need_subtitle']} 部影片需要补全字幕" + warning_msg
         
         # Stage 5错误处理
         if stats["stage5_error"] > 0:
-            return 5, False, f"有 {stats['stage5_error']} 部影片字幕补全失败"
+            return 5, False, f"有 {stats['stage5_error']} 部影片字幕补全失败" + warning_msg
         
         # 全部完成
-        return 5, False, f"全部完成！共 {total} 部影片"
+        return 5, False, f"全部完成！共 {valid_total} 部影片进入自动化" + warning_msg
     
     def get_movies_for_stage(self, stage: int) -> List[Dict]:
         """
