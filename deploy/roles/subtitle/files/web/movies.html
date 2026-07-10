@@ -14,6 +14,21 @@
     <div id="moviesContainer" style="margin-top: 1rem;">
       <div class="filter-bar">
         <input type="text" id="searchInput" class="filter-input" placeholder="搜索标题..." onkeyup="filterMovies()">
+        <select id="filterCnAudio" class="filter-input" style="flex: 0 1 auto; width: auto;" onchange="filterMovies()">
+          <option value="all">中文语音: 全部</option>
+          <option value="yes">中文语音: 有</option>
+          <option value="no">中文语音: 无</option>
+        </select>
+        <select id="filterZh" class="filter-input" style="flex: 0 1 auto; width: auto;" onchange="filterMovies()">
+          <option value="all">中文字幕: 全部</option>
+          <option value="yes">中文字幕: 有</option>
+          <option value="no">中文字幕: 无</option>
+        </select>
+        <select id="filterEn" class="filter-input" style="flex: 0 1 auto; width: auto;" onchange="filterMovies()">
+          <option value="all">英文字幕: 全部</option>
+          <option value="yes">英文字幕: 有</option>
+          <option value="no">英文字幕: 无</option>
+        </select>
         <label><input type="checkbox" id="selectAll" onchange="toggleAll()"> 全选可用</label>
         <span class="subtitle-count" style="margin-bottom:0;">共 <span id="moviesCount">0</span> 部影片</span>
       </div>
@@ -90,7 +105,27 @@
 
     function filterMovies() {
       const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-      filteredMovies = allMovies.filter(m => m.title.toLowerCase().includes(searchTerm));
+      const filterZh = document.getElementById('filterZh').value;
+      const filterEn = document.getElementById('filterEn').value;
+      const filterCnAudio = document.getElementById('filterCnAudio').value;
+
+      filteredMovies = allMovies.filter(m => {
+        const matchTitle = m.title.toLowerCase().includes(searchTerm);
+        
+        let matchZh = true;
+        if (filterZh === 'yes') matchZh = m.has_chinese_sub;
+        if (filterZh === 'no') matchZh = !m.has_chinese_sub;
+        
+        let matchEn = true;
+        if (filterEn === 'yes') matchEn = m.has_english_sub;
+        if (filterEn === 'no') matchEn = !m.has_english_sub;
+
+        let matchCnAudio = true;
+        if (filterCnAudio === 'yes') matchCnAudio = m.is_chinese_audio;
+        if (filterCnAudio === 'no') matchCnAudio = !m.is_chinese_audio;
+        
+        return matchTitle && matchZh && matchEn && matchCnAudio;
+      });
       
       // 执行排序
       filteredMovies.sort((a, b) => {
