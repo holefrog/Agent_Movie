@@ -405,40 +405,25 @@ def scan_all_movies(api_key: str, media_paths: list[str]):
         if not base_dir.exists() or not base_dir.is_dir():
             continue
             
-        processed_dirs = set()
-        for meta_nfo in base_dir.rglob("*.nfo"):
-            if meta_nfo.name.lower().endswith(".json") or meta_nfo.name.lower() == "language.nfo":
-                continue
-                
-            movie_dir = meta_nfo.parent
-            if movie_dir in processed_dirs:
-                continue
-                
-            video_files = [f for f in movie_dir.iterdir() if f.is_file() and f.suffix.lower() in _VIDEO_EXTS]
-            if not video_files:
-                continue
-                
-            processed_dirs.add(movie_dir)
-                
-            main_video = max(video_files, key=lambda f: f.stat().st_size)
-            metadata = Metadata(main_video)
-            if metadata.exists():
-                try:
-                    audio_info = metadata.get_audio_tracks()
-                    # tracks 非空才视为真正完成了音轨识别
-                    if audio_info.get("done") and audio_info.get("tracks"):
-                        sub_tracks = metadata.get_subtitle_tracks()
-                        # has_internal_chinese_sub 必须是 True/False 才算完成，None 表示未检测过
-                        if sub_tracks.get("has_internal_chinese_sub") is not None:
-                            stt_status["already_processed_count"] += 1
-                            continue
-                except Exception:
-                    pass
+        for f in base_dir.rglob("*"):
+            if f.is_file() and f.suffix.lower() in _VIDEO_EXTS:
+                if f.stat().st_size > 100 * 1024 * 1024:
+                    metadata = Metadata(f)
+                    if metadata.exists():
+                        try:
+                            audio_info = metadata.get_audio_tracks()
+                            sub_tracks = metadata.get_subtitle_tracks()
+                            # 如果音轨已经识别完毕，且内置字幕也已经检查过，才算完全处理完
+                            if audio_info.get("done") and sub_tracks.get("has_internal_chinese_sub") is not None:
+                                stt_status["already_processed_count"] += 1
+                                continue
+                        except Exception:
+                            pass
+                    
+                    movies_to_process.append(f)
             
-            movies_to_process.append((movie_dir, main_video))
-            
-    # 按电影名称字母序排序，保证体检扫描顺序稳定且可预测
-    movies_to_process.sort(key=lambda x: x[0].name.lower())
+    # 按视频名称字母序排序，保证扫描顺序稳定且可预测
+    movies_to_process.sort(key=lambda x: x.name.lower())
             
     stt_status["total_movies"] = len(movies_to_process)
     stt_status["total_library_count"] = stt_status["already_processed_count"] + len(movies_to_process)
@@ -456,7 +441,7 @@ def scan_all_movies(api_key: str, media_paths: list[str]):
     import threading
     threading.Thread(target=watchdog, daemon=True).start()
     
-    for movie_dir, main_video in movies_to_process:
+    for main_video in movies_to_process:
         if stt_status["should_stop"]:
             logger.info("收到中止信号，停止全库跑批。")
             break
@@ -465,16 +450,16 @@ def scan_all_movies(api_key: str, media_paths: list[str]):
             logger.info("心跳超时（10秒未收到 Web 前端请求），判断页面已关闭，自动中止全库跑批。")
             break
             
-        stt_status["current_movie"] = movie_dir.name
+        stt_status["current_movie"] = main_video.name
         
         try:
             res = build_language_nfo_for_video(main_video, api_key)
             stt_status["processed_movies"].insert(0, {
-                "title": movie_dir.name,
+                "title": main_video.name,
                 "tracks": res.get("audio_tracks", [])
             })
         except Exception as e:
-            logger.error(f"分析失败 {movie_dir.name}: {e}")
+            logger.error(f"分析失败 {main_video.name}: {e}")
             stt_status["error"] = str(e)
             stt_status["should_stop"] = True
             break
