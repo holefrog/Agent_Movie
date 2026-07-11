@@ -278,6 +278,19 @@ def api_stage5_complete():
     for i, movie in enumerate(to_process):
         logger.info(f"处理 {i + 1}/{len(to_process)}: {movie['title']}")
         result = get_missing_subtitle(movie, os_config, translate_config)
+        
+        # 实时同步更新内存缓存
+        if result.get("success") or result.get("method") == "existed":
+            try:
+                import scanner
+                for m in scanner.scan_status.get("results", []):
+                    if m.get("video_path") == movie.get("video_path"):
+                        m["has_external_chinese_sub"] = True
+                        m["has_chinese_sub"] = True
+                        break
+            except Exception as e:
+                logger.warning(f"同步内存缓存失败: {e}")
+                
         results.append({
             "title": movie["title"],
             "year": movie["year"],
