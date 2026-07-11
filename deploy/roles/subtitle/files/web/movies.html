@@ -295,10 +295,10 @@
       document.getElementById('results').innerHTML = '';
       
       try {
-        const res = await fetch('/api/download_subtitles', {
+        const res = await fetch('/api/stage5_complete', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ paths: paths })
+          body: JSON.stringify({ selected: paths })
         });
         const data = await res.json();
         
