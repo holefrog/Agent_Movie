@@ -110,28 +110,10 @@ class Metadata:
         }
     
     def _ensure_structure(self):
-        """确保数据结构完整（修复由于历史遗留导致的部分缺失或旧版格式）"""
+        """确保数据结构完整（修复由于历史遗留导致的部分缺失）"""
         empty = self._get_empty_structure()
         changed = False
         
-        # 特殊处理：版本1中的 audio_tracks 可能是 list
-        if "audio_tracks" in self._data and isinstance(self._data["audio_tracks"], list):
-            old_tracks = self._data["audio_tracks"]
-            self._data["audio_tracks"] = empty["audio_tracks"].copy()
-            self._data["audio_tracks"]["tracks"] = old_tracks
-            changed = True
-            
-        # 清理历史遗留字段：从 audio_tracks 中移除 has_internal_chinese_sub
-        if "audio_tracks" in self._data and isinstance(self._data["audio_tracks"], dict):
-            if "has_internal_chinese_sub" in self._data["audio_tracks"]:
-                del self._data["audio_tracks"]["has_internal_chinese_sub"]
-                changed = True
-            if "tracks" in self._data["audio_tracks"] and isinstance(self._data["audio_tracks"]["tracks"], list):
-                for track in self._data["audio_tracks"]["tracks"]:
-                    if isinstance(track, dict) and "has_internal_chinese_sub" in track:
-                        del track["has_internal_chinese_sub"]
-                        changed = True
-            
         # 遍历所有空结构的键
         for key, default_val in empty.items():
             if key not in self._data:
@@ -152,14 +134,6 @@ class Metadata:
                         if sub_key not in self._data[key]:
                             self._data[key][sub_key] = sub_val
                             changed = True
-                            
-        # 删除不再使用的旧字段，或者不在 empty_structure 里的顶级冗余字段（可选）
-                            
-        version = self._data.get("version", 1)
-        if version < 2:
-            logger.info(f"状态文件版本 {version} 需要迁移到版本 2: {self.metadata_path.name}")
-            self._data["version"] = 2
-            changed = True
             
         if changed:
             self.save()
