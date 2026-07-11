@@ -139,7 +139,7 @@ class StateMachine:
                 continue
             
             # Stage 1
-            if bool(data["movie"]["title"] and data["movie"]["imdb_id"]):
+            if bool(data["movie"].get("title") and (data["movie"].get("imdb_id") or data["movie"].get("tmdb_id"))):
                 stats["stage1_done"] += 1
             
             # Stage 2

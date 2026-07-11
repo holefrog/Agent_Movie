@@ -224,12 +224,15 @@ def parse_nfo(nfo_path: Path) -> dict | None:
     year = root.findtext("year", "").strip()
     languages = root.findtext("languages", "").strip()
 
-    # 提取 IMDB ID
+    # 提取 IMDB 和 TMDB ID
     imdb_id = ""
+    tmdb_id = ""
     for uid in root.findall("uniqueid"):
-        if uid.get("type") == "imdb":
+        uid_type = uid.get("type")
+        if uid_type == "imdb":
             imdb_id = (uid.text or "").strip()
-            break
+        elif uid_type == "tmdb":
+            tmdb_id = (uid.text or "").strip()
 
     if not title:
         return None
@@ -238,6 +241,7 @@ def parse_nfo(nfo_path: Path) -> dict | None:
         "title": title,
         "year": year,
         "imdb_id": imdb_id,
+        "tmdb_id": tmdb_id,
         "languages": languages,
     }
 
@@ -288,6 +292,7 @@ def scan_directory(media_path: str) -> list[dict]:
                 "title": video_file.stem,
                 "year": "",
                 "imdb_id": "",
+                "tmdb_id": "",
                 "languages": ""
             }
         
@@ -297,7 +302,8 @@ def scan_directory(media_path: str) -> list[dict]:
             title=nfo_info["title"],
             year=nfo_info["year"],
             imdb_id=nfo_info["imdb_id"],
-            version=""  # 可以从NFO或其他地方提取版本信息
+            version="",  # 可以从NFO或其他地方提取版本信息
+            tmdb_id=nfo_info.get("tmdb_id", "")
         )
         
         is_chinese_audio = None
@@ -357,6 +363,7 @@ def scan_directory(media_path: str) -> list[dict]:
             "title": nfo_info["title"],
             "year": nfo_info["year"],
             "imdb_id": nfo_info["imdb_id"],
+            "tmdb_id": nfo_info.get("tmdb_id", ""),
             "languages": nfo_info["languages"],
             "is_chinese_audio": is_chinese_audio,
             "has_external_chinese_sub": has_external_chinese_sub,

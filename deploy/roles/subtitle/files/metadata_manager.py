@@ -59,11 +59,12 @@ class Metadata:
         """返回空的数据结构"""
         return {
             "version": 2,
-            "last_updated": "",
+            "last_updated": datetime.now(timezone.utc).isoformat(),
             "movie": {
                 "title": "",
                 "year": "",
                 "imdb_id": "",
+                "tmdb_id": "",
                 "version": ""
             },
             "video_file": {
@@ -198,12 +199,13 @@ class Metadata:
     
     # ==================== Stage 1: 影片信息 ====================
     
-    def set_movie_info(self, title: str, year: str, imdb_id: str, version: str = ""):
+    def set_movie_info(self, title: str, year: str, imdb_id: str, version: str = "", tmdb_id: str = ""):
         """设置影片信息"""
         data = self._load()
         data["movie"]["title"] = title
         data["movie"]["year"] = year
         data["movie"]["imdb_id"] = imdb_id
+        data["movie"]["tmdb_id"] = tmdb_id
         data["movie"]["version"] = version
         self.save()
     

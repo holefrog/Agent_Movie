@@ -71,12 +71,14 @@ def download_subtitle(movie: dict, os_config: dict, lang_code: str, save_ext: st
         return None
 
     imdb_id = movie.get("imdb_id", "")
-    if not imdb_id:
-        logger.warning(f"影片 {movie['title']} 无 IMDB ID，无法搜索字幕")
+    tmdb_id = movie.get("tmdb_id", "")
+    if not imdb_id and not tmdb_id:
+        logger.warning(f"影片 {movie['title']} 无 IMDB/TMDB ID，无法搜索字幕")
         return None
 
     try:
-        imdb_num = imdb_id.replace("tt", "")
+        imdb_num = imdb_id.replace("tt", "") if imdb_id else None
+        tmdb_num = int(tmdb_id) if tmdb_id else None
         
         # 处理带有逗号的语种列表，如 zh-cn,zh-tw
         langs = re.split(r'[,|;]+', lang_code)
@@ -88,7 +90,13 @@ def download_subtitle(movie: dict, os_config: dict, lang_code: str, save_ext: st
             
             def _search():
                 time.sleep(1.5)
-                return ost.search(imdb_id=imdb_num, languages=lang)
+                # kwargs: only pass what is not None
+                kwargs = {"languages": lang}
+                if imdb_num:
+                    kwargs["imdb_id"] = imdb_num
+                if tmdb_num:
+                    kwargs["tmdb_id"] = tmdb_num
+                return ost.search(**kwargs)
                 
             retry_config = {"max_retries": 3, "base_delay": 2.0, "backoff_factor": 1.5, "max_delay": 15.0}
             results = with_retry(_search, retry_config, label=f"OST Search {lang}")

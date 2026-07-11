@@ -138,11 +138,29 @@ def get_subtitle_streams(video_path: Path) -> list[dict]:
     return []
 
 def check_internal_chinese_subtitle(video_path: Path, subtitle_streams: list[dict]) -> bool | None:
-    """检查是否有内置中文字幕（导出字幕到tmp并用统一函数检测）"""
+    """检查是否有内置中文字幕（通过明确的 metadata 标签判定，或导出字幕内容检测）"""
     if not subtitle_streams:
         return None
-    
+        
     for stream in subtitle_streams:
+        lang = stream.get("lang", "").lower()
+        title = stream.get("title", "").lower()
+        # 优先信任明确的 metadata 标签
+        if lang in ("zh", "chi", "zho", "zh-cn", "zh-tw", "zh-hk"):
+            logger.info(f"根据 Metadata 标签检测到内置中文字幕 (stream {stream.get('index')} lang: {lang}): {video_path.name}")
+            return True
+            
+        if "chinese" in title or "中文" in title or "国语" in title or "粤语" in title:
+            logger.info(f"根据 Metadata 标题检测到内置中文字幕 (stream {stream.get('index')} title: {title}): {video_path.name}")
+            return True
+    
+    # 如果没有明确的 metadata，且 codec 支持导出为文本，则导出部分进行语言侦测
+    for stream in subtitle_streams:
+        codec = stream.get("codec", "").lower()
+        if codec in ("hdmv_pgs_subtitle", "dvd_subtitle", "dvb_subtitle"):
+            # 图片格式字幕，ffmpeg 无法直接提取为 srt 文本
+            continue
+            
         stream_idx = stream["index"]
         
         with NamedTemporaryFile(dir="/tmp", suffix=".txt", delete=False) as tmp:
@@ -164,7 +182,7 @@ def check_internal_chinese_subtitle(video_path: Path, subtitle_streams: list[dic
             if tmp_path.exists() and tmp_path.stat().st_size > 0:
                 lang = detect_subtitle_language(tmp_path)
                 if lang in ("zh-CN", "zh-TW"):
-                    logger.info(f"检测到内置中文字幕 (stream {stream_idx}): {video_path.name}")
+                    logger.info(f"通过内容侦测到内置中文字幕 (stream {stream_idx}): {video_path.name}")
                     return True
         except Exception as e:
             logger.warning(f"检测内置字幕失败 (stream {stream_idx}): {e}")
@@ -364,6 +382,7 @@ def build_language_nfo_for_video(video_path: Path, api_key: str) -> dict:
             has_internal_chinese_sub=has_internal_chinese_sub,
             streams=result["subtitle_tracks"],
         )
+        result["has_internal_chinese_sub"] = has_internal_chinese_sub
         logger.info(f"已保存状态文件: {metadata.metadata_path.name}")
     except Exception as e:
         logger.error(f"保存状态文件失败: {e}")
@@ -459,6 +478,20 @@ def scan_all_movies(api_key: str, media_paths: list[str]):
                 "title": main_video.name,
                 "tracks": res.get("audio_tracks", [])
             })
+            
+            # 实时同步更新内存缓存，以便前端网页能直接拿到最新数据
+            try:
+                import scanner
+                for m in scanner.scan_status.get("results", []):
+                    if m.get("video_path") == str(main_video):
+                        if res.get("audio_tracks"):
+                            primary_lang = res["audio_tracks"][0]["lang"]
+                            m["is_chinese_audio"] = (primary_lang == "zh")
+                        m["has_internal_chinese_sub"] = res.get("has_internal_chinese_sub")
+                        break
+            except Exception as sync_ex:
+                logger.warning(f"同步内存缓存失败: {sync_ex}")
+                
         except Exception as e:
             logger.error(f"分析失败 {main_video.name}: {e}")
             stt_status["error"] = str(e)
