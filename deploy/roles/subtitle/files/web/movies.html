@@ -302,10 +302,26 @@
         });
         const data = await res.json();
         
-        if (data.success) {
-          startDownloadProgress();
+        if (data.results) {
+          // 隐藏进度条，直接展示结果
+          document.getElementById('progress').style.display = 'none';
+          document.getElementById('progressBar').style.width = '100%';
+          document.getElementById('progressText').textContent = '下载完成！';
+          
+          // 展示结果
+          const resultsDiv = document.getElementById('results');
+          resultsDiv.innerHTML = '<h4>下载结果:</h4><ul class="result-list"></ul>';
+          const ul = resultsDiv.querySelector('ul');
+          data.results.forEach(item => {
+            const li = document.createElement('li');
+            li.textContent = `${item.title}: ${item.success ? '成功 (' + item.method + ')' : '失败 (' + item.error + ')'}`;
+            ul.appendChild(li);
+          });
+          
+          // 重新刷新列表数据
+          fetchMovies();
         } else {
-          alert("提交下载任务失败: " + data.error);
+          alert("提交下载任务失败: " + (data.error || "未知错误"));
           btn.disabled = false;
         }
       } catch (err) {
