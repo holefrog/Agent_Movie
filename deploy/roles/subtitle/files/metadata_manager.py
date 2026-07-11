@@ -5,6 +5,7 @@ metadata_manager.py - 状态文件管理模块
 import json
 import logging
 from pathlib import Path
+from datetime import datetime, timezone
 from typing import Optional, Any
 import fcntl  # 文件锁，确保并发安全
 
