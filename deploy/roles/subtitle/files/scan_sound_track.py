@@ -16,11 +16,13 @@ from scanner import detect_subtitle_language
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("scan_sound_track")
 
+# Stage 4 lock 文件路径（会在调用时从 app 传入）
+STAGE4_LOCK_FILE = None
+
 # 全局状态，用于 Web UI 监控
 stt_status = {
     "is_running": False,
     "should_stop": False,
-    "last_ping_time": 0,
     "total_movies": 0,
     "processed_count": 0,
     "current_movie": "",
@@ -259,7 +261,7 @@ def detect_language_via_groq(audio_path: Path, api_key: str) -> str:
         logger.error(f"Groq API 请求彻底失败: {e}")
         return "unknown"
 
-def analyze_track_language(video_path: Path, stream_idx: int, duration: float, api_key: str) -> str:
+def analyze_track_language(video_path: Path, stream_idx: int, duration: float, api_key: str, lock_file: str = None) -> str:
     if duration < 60:
         logger.warning(f"视频时长过短 ({duration}s)，跳过识别")
         return "unknown"
@@ -277,6 +279,11 @@ def analyze_track_language(video_path: Path, stream_idx: int, duration: float, a
     detected_langs = []
 
     for point in sample_points:
+        # 检查 lock 文件是否还存在（Web 进程是否还活着）
+        if lock_file and not os.path.exists(lock_file):
+            logger.info("检测到中止信号（lock 文件消失），提前结束当前音轨分析")
+            return "unknown"
+        
         if stt_status.get("should_stop", False):
             logger.info("检测到中止信号，提前结束当前音轨分析")
             break
@@ -318,7 +325,7 @@ def analyze_track_language(video_path: Path, stream_idx: int, duration: float, a
     # 否则取最高票
     return max(lang_counts, key=lang_counts.get)
 
-def build_language_nfo_for_video(video_path: Path, api_key: str) -> dict:
+def build_language_nfo_for_video(video_path: Path, api_key: str, lock_file: str = None) -> dict:
     logger.info(f"开始分析视频音轨: {video_path.name}")
     duration = get_video_duration(video_path)
     stream_indices = get_audio_stream_indices(video_path)
@@ -355,12 +362,17 @@ def build_language_nfo_for_video(video_path: Path, api_key: str) -> dict:
         result["audio_tracks"] = existing_audio_tracks
     else:
         for idx in stream_indices:
+            # 检查 lock 文件是否还存在（Web 进程是否还活着）
+            if lock_file and not os.path.exists(lock_file):
+                logger.info("检测到中止信号（lock 文件消失），放弃分析剩余音轨")
+                break
+            
             if stt_status.get("should_stop", False):
                 logger.info("检测到中止信号，放弃分析剩余音轨")
                 break
                 
             logger.info(f"正在分析音轨 {idx}...")
-            lang = analyze_track_language(video_path, idx, duration, api_key)
+            lang = analyze_track_language(video_path, idx, duration, api_key, lock_file)
             if lang == "unknown":
                 raise Exception(f"无法识别音轨 {idx} 的语言 (可能为纯无声或不支持的格式)。根据配置，已报错并退出。")
                 
@@ -397,7 +409,18 @@ def load_settings() -> dict:
         raise FileNotFoundError("找不到 settings.toml")
     return toml.load(settings_path)
 
-def scan_all_movies(api_key: str, media_paths: list[str]):
+def scan_all_movies(api_key: str, media_paths: list[str], lock_file: str = None):
+    """
+    扫描所有媒体库中的视频并识别音轨
+    
+    Args:
+        api_key: Groq API Key
+        media_paths: 媒体库路径列表
+        lock_file: Stage 4 lock 文件路径（用于检测 Web 进程是否还活着）
+    """
+    global STAGE4_LOCK_FILE, stt_status
+    STAGE4_LOCK_FILE = lock_file or "/tmp/agent_movie_stage4.lock"
+    
     settings = load_settings()
     if "scanner" not in settings:
         raise ValueError("settings.toml 中缺少 [scanner] 配置块")
@@ -407,8 +430,6 @@ def scan_all_movies(api_key: str, media_paths: list[str]):
         raise ValueError("settings.toml 中 scanner 块缺少 video_exts 配置")
         
     _VIDEO_EXTS = set(scanner_config["video_exts"])
-    
-    global stt_status
     stt_status["is_running"] = True
     stt_status["should_stop"] = False
     stt_status["processed_count"] = 0
@@ -447,33 +468,21 @@ def scan_all_movies(api_key: str, media_paths: list[str]):
             
     stt_status["total_movies"] = len(movies_to_process)
     stt_status["total_library_count"] = stt_status["already_processed_count"] + len(movies_to_process)
-    stt_status["last_ping_time"] = time.time()  # 初始化
-    
-    # 启动看门狗线程，独立监控心跳
-    def watchdog():
-        while stt_status["is_running"]:
-            if not stt_status["should_stop"] and time.time() - stt_status.get("last_ping_time", 0) > 10:
-                logger.info("心跳看门狗：10秒未收到 Web 前端请求，判断页面已关闭，立即发送中止信号！")
-                stt_status["should_stop"] = True
-                break
-            time.sleep(2)
-            
-    import threading
-    threading.Thread(target=watchdog, daemon=True).start()
     
     for main_video in movies_to_process:
+        # 检查 lock 文件是否存在（Web 进程是否还活着）
+        if STAGE4_LOCK_FILE and not os.path.exists(STAGE4_LOCK_FILE):
+            logger.info("Web 进程已关闭（lock 文件消失），Stage 4 自动退出")
+            break
+        
         if stt_status["should_stop"]:
             logger.info("收到中止信号，停止全库跑批。")
-            break
-            
-        if time.time() - stt_status.get("last_ping_time", 0) > 10:
-            logger.info("心跳超时（10秒未收到 Web 前端请求），判断页面已关闭，自动中止全库跑批。")
             break
             
         stt_status["current_movie"] = main_video.name
         
         try:
-            res = build_language_nfo_for_video(main_video, api_key)
+            res = build_language_nfo_for_video(main_video, api_key, STAGE4_LOCK_FILE)
             stt_status["processed_movies"].insert(0, {
                 "title": main_video.name,
                 "tracks": res.get("audio_tracks", [])

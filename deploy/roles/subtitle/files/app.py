@@ -3,6 +3,8 @@ app.py - Flask Web 入口。
 5阶段架构：状态机驱动的渐进式处理
 """
 import sys
+import os
+import atexit
 import toml
 import logging
 from pathlib import Path
@@ -23,6 +25,9 @@ app = Flask(__name__, template_folder="web", static_folder="web", static_url_pat
 
 # 配置文件路径：与 app.py 同级的 settings.toml
 _CONFIG_PATH = Path(__file__).parent / "settings.toml"
+
+# Stage 4 lock 文件路径（用于检测 Web 进程是否还活着）
+STAGE4_LOCK_FILE = None
 
 
 def load_config() -> dict:
@@ -171,8 +176,6 @@ def stt_scan():
 def api_stt_status():
     """获取当前音轨体检进度"""
     import scan_sound_track
-    import time
-    scan_sound_track.stt_status["last_ping_time"] = time.time()
     return jsonify(scan_sound_track.stt_status)
 
 
@@ -249,7 +252,17 @@ def api_stage4_stt():
     api_key = config["translate"]["groq"]["api_key"]
     media_paths = config["scanner"]["media_paths"]
     
-    thread = threading.Thread(target=scan_sound_track.scan_all_movies, args=(api_key, media_paths))
+    # 创建 lock 文件，标记 Web 进程正在运行
+    try:
+        Path(STAGE4_LOCK_FILE).touch()
+        logger.info(f"创建 Stage 4 lock 文件: {STAGE4_LOCK_FILE}")
+    except Exception as e:
+        logger.warning(f"创建 lock 文件失败: {e}")
+    
+    thread = threading.Thread(
+        target=scan_sound_track.scan_all_movies, 
+        args=(api_key, media_paths, STAGE4_LOCK_FILE)
+    )
     thread.daemon = True
     thread.start()
     
@@ -320,10 +333,34 @@ def api_stt_stop():
     scan_sound_track.stt_status["should_stop"] = True
     return jsonify({"success": True})
 
+
+def _init_stage4_lock():
+    """初始化 Stage 4 lock 文件路径"""
+    global STAGE4_LOCK_FILE
+    deploy_dir = Path(__file__).parent
+    STAGE4_LOCK_FILE = str(deploy_dir / ".stage4.lock")
+
+
+def _cleanup_stage4_lock():
+    """程序退出时清理 lock 文件"""
+    global STAGE4_LOCK_FILE
+    if STAGE4_LOCK_FILE and os.path.exists(STAGE4_LOCK_FILE):
+        try:
+            os.remove(STAGE4_LOCK_FILE)
+            logger.info("Stage 4 lock 文件已清理")
+        except Exception as e:
+            logger.warning(f"清理 lock 文件失败: {e}")
+
+
 if __name__ == "__main__":
-    import os
     import threading
     import webbrowser
+
+    # 初始化 Stage 4 lock 文件路径
+    _init_stage4_lock()
+    
+    # 注册退出清理函数
+    atexit.register(_cleanup_stage4_lock)
 
     config = load_config()
     host = config["web"]["host"]

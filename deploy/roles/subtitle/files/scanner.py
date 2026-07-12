@@ -129,6 +129,18 @@ def detect_subtitle_language(filepath: Path) -> str:
         return "unknown"
 
 
+def _get_movie_prefix(stem: str) -> str:
+    """从文件名 stem 中提取影片名+年份部分，去掉版本、编解码等后缀标识。
+    例: 'Avatar∶ The Way of Water (2022) 1080p EAC3' → 'Avatar∶ The Way of Water (2022)'
+    例: 'Taxi (1998) 720p BluRay' → 'Taxi (1998)'
+    如果没有括号年份，则直接返回原 stem。
+    """
+    match = re.match(r'^(.+?\(\d{4}\))', stem)
+    if match:
+        return match.group(1).strip()
+    return stem
+
+
 def _has_lang_tag(filename_lower: str) -> bool:
     """检查文件名是否已带语言标识"""
     for tag in (".zh.", ".zh-cn.", ".zh-tw.", ".chi.", ".chs.", ".cht.",
@@ -323,6 +335,10 @@ def scan_directory(media_path: str) -> list[dict]:
                 logger.warning(f"读取状态文件失败 {metadata.metadata_path.name}: {e}")
 
         # 找到该目录下所有字幕文件
+        # 只用"影片名+年份"做前缀匹配，忽略版本/编解码标识（EAC3/AAC等）
+        # 这样同目录下不同编解码版本的字幕也能正确匹配到对应的视频
+        video_movie_prefix = _get_movie_prefix(video_file.stem)  # 例如 "Taxi (1998)"
+        
         sub_files = [f for f in directory.iterdir()
                      if f.is_file() and f.suffix.lower() in _SUB_EXTS]
 
@@ -332,6 +348,10 @@ def scan_directory(media_path: str) -> list[dict]:
 
         for sub in sub_files:
             name_lower = sub.name.lower()
+            
+            # 只要字幕文件名以"影片名+年份"开头，就认为属于这个视频
+            if not sub.name.startswith(video_movie_prefix):
+                continue  # 跳过不属于这个视频的字幕
             
             # 判断是否是需要重命名/清理的脏数据（无明确语言后缀，或者可能是极小的垃圾文件）
             if sub.stat().st_size < 1024:
@@ -420,11 +440,13 @@ def normalize_subtitles(media_path: str) -> dict:
                 
             name_lower = sub.name.lower()
             if any(tag in name_lower for tag in [".zh-cn.", ".zh-tw.", ".zh.", ".en.", ".eng."]):
-                # 即使标签合规，如果不跟视频同名，也应该纠正（如果能拿到视频名）
-                if main_video_stem and not sub.name.startswith(main_video_stem):
-                    pass # 继续往下走去重命名
+                # 即使标签合规，如果文件名不以视频完整 stem 开头，也应该纠正（重命名为标准名）
+                # 使用影片名+年份前缀判断字幕是否属于该目录；若已完全同名则跳过
+                main_movie_prefix = _get_movie_prefix(main_video_stem) if main_video_stem else None
+                if main_movie_prefix and not sub.name.startswith(main_video_stem):
+                    pass  # 字幕不以视频完整 stem 开头（如 AAC vs EAC3），继续走重命名
                 else:
-                    continue # 完全合规
+                    continue  # 完全合规，跳过
                 
             # 执行重命名
             detected = detect_subtitle_language(sub)
