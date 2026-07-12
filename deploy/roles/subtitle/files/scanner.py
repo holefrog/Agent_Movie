@@ -361,6 +361,9 @@ def scan_directory(media_path: str) -> list[dict]:
             # 如果文件名不包含合规标签，视为脏数据
             if not any(tag in name_lower for tag in [".zh-cn.", ".zh-tw.", ".zh.", ".en.", ".eng."]):
                 dirty_subs.append(sub)
+            # 有合规标签，但 stem 与视频不一致（如 AAC.zh.srt vs EAC3.mkv），也需要 Stage 3 重命名
+            elif not sub.name.startswith(video_file.stem):
+                dirty_subs.append(sub)
                 
             # 按文件名简单归类，用于判断是否已有字幕（仅凭文件名，内容纠正交给 Stage 2）
             if ".zh-cn." in name_lower or ".zh-tw." in name_lower or ".zh." in name_lower or _is_chinese_sub_by_name(name_lower):
