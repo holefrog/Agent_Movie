@@ -407,8 +407,8 @@ def normalize_subtitles(media_path: str) -> dict:
         return {"success": False, "error": f"媒体路径不存在: {media_path}"}
 
     processed_count = 0
-    deleted_count = 0
-    renamed_count = 0
+    total_deleted = 0
+    total_renamed = 0
     errors = []
     
     # 排除状态文件（.json文件）
@@ -422,30 +422,38 @@ def normalize_subtitles(media_path: str) -> dict:
         
         main_video = None
         main_video_stem = None
+        main_movie_prefix = None
         if video_files:
             main_video = max(video_files, key=lambda f: f.stat().st_size)
             main_video_stem = main_video.stem
+            main_movie_prefix = _get_movie_prefix(main_video_stem)
             
         sub_files = [f for f in directory.iterdir()
                      if f.is_file() and f.suffix.lower() in _SUB_EXTS]
+
+        # 每个目录独立计数，写入 JSON 时只用本目录的数字
+        dir_deleted = 0
+        dir_renamed = 0
+        dir_errors = []
                      
         for sub in sub_files:
+            # 只处理属于该影片的字幕（以"影片名+年份"为前缀）
+            if main_movie_prefix and not sub.name.startswith(main_movie_prefix):
+                continue
+
             if sub.stat().st_size < 1024:
                 try:
                     sub.unlink()
-                    deleted_count += 1
+                    dir_deleted += 1
                 except OSError:
                     pass
                 continue
                 
             name_lower = sub.name.lower()
             if any(tag in name_lower for tag in [".zh-cn.", ".zh-tw.", ".zh.", ".en.", ".eng."]):
-                # 即使标签合规，如果文件名不以视频完整 stem 开头，也应该纠正（重命名为标准名）
-                # 使用影片名+年份前缀判断字幕是否属于该目录；若已完全同名则跳过
-                main_movie_prefix = _get_movie_prefix(main_video_stem) if main_video_stem else None
-                if main_movie_prefix and not sub.name.startswith(main_video_stem):
-                    pass  # 字幕不以视频完整 stem 开头（如 AAC vs EAC3），继续走重命名
-                else:
+                # 已有语言标签：只有文件名与视频完整 stem 完全一致时才视为合规，跳过
+                # 若 stem 不一致（如 AAC.zh.srt vs EAC3.mkv），则继续重命名
+                if main_video_stem and sub.name.startswith(main_video_stem):
                     continue  # 完全合规，跳过
                 
             # 执行重命名
@@ -456,24 +464,27 @@ def normalize_subtitles(media_path: str) -> dict:
             try:
                 new_path = rename_subtitle(sub, detected, base_stem=main_video_stem)
                 if new_path.name != sub.name:
-                    renamed_count += 1
+                    dir_renamed += 1
             except FileExistsError as e:
-                errors.append(f"[{directory.name}] {str(e)}")
+                dir_errors.append(f"[{directory.name}] {str(e)}")
                 
         processed_count += 1
+        total_deleted += dir_deleted
+        total_renamed += dir_renamed
+        errors.extend(dir_errors)
         
-        # 更新状态文件（Stage 3）
+        # 更新状态文件（Stage 3），只写入本目录的计数
         if main_video:
             metadata = Metadata(main_video)
-            metadata.set_subtitles_cleanup(deleted_count, renamed_count)
-            if errors:
-                metadata.set_error(3, "; ".join(errors))
+            metadata.set_subtitles_cleanup(dir_deleted, dir_renamed)
+            if dir_errors:
+                metadata.set_error(3, "; ".join(dir_errors))
         
     return {
         "success": len(errors) == 0,
         "processed_dirs": processed_count,
-        "deleted_count": deleted_count,
-        "renamed_count": renamed_count,
+        "deleted_count": total_deleted,
+        "renamed_count": total_renamed,
         "errors": errors
     }
 
