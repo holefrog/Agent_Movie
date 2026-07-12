@@ -221,12 +221,14 @@ class Metadata:
     # ==================== Stage 3: 字幕清洗 ====================
     
     def set_subtitles_cleanup(self, files_deleted: int, files_renamed: int, error: Optional[str] = None):
-        """设置字幕清洗结果"""
+        """设置字幕清洗结果，同时重置 has_garbage 标志"""
         data = self._load()
         data["subtitles_cleanup"]["done"] = True
         data["subtitles_cleanup"]["files_deleted"] = files_deleted
         data["subtitles_cleanup"]["files_renamed"] = files_renamed
         data["subtitles_cleanup"]["error"] = error
+        # 清洗完成即意味着脏字幕已处理，重置此标志避免 State Machine 误判
+        data["subtitles_assessment"]["has_garbage"] = False
         self.save()
     
     def get_subtitles_cleanup(self) -> dict:

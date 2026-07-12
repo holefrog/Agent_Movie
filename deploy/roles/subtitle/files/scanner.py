@@ -477,6 +477,7 @@ def normalize_subtitles(media_path: str) -> dict:
         errors.extend(dir_errors)
         
         # 更新状态文件（Stage 3），只写入本目录的计数
+        # set_subtitles_cleanup 内部会同时重置 has_garbage=False
         if main_video:
             metadata = Metadata(main_video)
             metadata.set_subtitles_cleanup(dir_deleted, dir_renamed)
