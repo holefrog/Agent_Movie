@@ -335,10 +335,18 @@ def scan_directory(media_path: str) -> list[dict]:
                 logger.warning(f"读取状态文件失败 {metadata.metadata_path.name}: {e}")
 
         # 找到该目录下所有字幕文件
-        # 只用"影片名+年份"做前缀匹配，忽略版本/编解码标识（EAC3/AAC等）
-        # 这样同目录下不同编解码版本的字幕也能正确匹配到对应的视频
-        video_movie_prefix = _get_movie_prefix(video_file.stem)  # 例如 "Taxi (1998)"
-        
+        # 同目录只有单个视频时，使用"影片名+年份"宽松前缀匹配（处理 EAC3/AAC 等版本名差异）
+        # 同目录有多个视频时，使用精确 stem 匹配，避免不同版本之间相互干扰
+        all_videos_in_dir = [f for f in directory.iterdir()
+                             if f.is_file() and f.suffix.lower() in _VIDEO_EXTS
+                             and f.stat().st_size > 100 * 1024 * 1024]
+        multi_video_dir = len(all_videos_in_dir) > 1
+
+        if multi_video_dir:
+            sub_prefix = video_file.stem          # 精确匹配："Movie (2022) 1080p DTS"
+        else:
+            sub_prefix = _get_movie_prefix(video_file.stem)  # 宽松匹配："Movie (2022)"
+
         sub_files = [f for f in directory.iterdir()
                      if f.is_file() and f.suffix.lower() in _SUB_EXTS]
 
@@ -348,24 +356,25 @@ def scan_directory(media_path: str) -> list[dict]:
 
         for sub in sub_files:
             name_lower = sub.name.lower()
-            
-            # 只要字幕文件名以"影片名+年份"开头，就认为属于这个视频
-            if not sub.name.startswith(video_movie_prefix):
-                continue  # 跳过不属于这个视频的字幕
-            
-            # 判断是否是需要重命名/清理的脏数据（无明确语言后缀，或者可能是极小的垃圾文件）
+
+            # 只处理属于这个视频的字幕
+            if not sub.name.startswith(sub_prefix):
+                continue
+
+            # 判断是否是需要重命名/清理的脏数据
             if sub.stat().st_size < 1024:
                 dirty_subs.append(sub)
                 continue
-                
+
             # 如果文件名不包含合规标签，视为脏数据
             if not any(tag in name_lower for tag in [".zh-cn.", ".zh-tw.", ".zh.", ".en.", ".eng."]):
                 dirty_subs.append(sub)
-            # 有合规标签，但 stem 与视频不一致（如 AAC.zh.srt vs EAC3.mkv），也需要 Stage 3 重命名
+            # 有合规标签，但 stem 与视频完整 stem 不一致（如 AAC.zh.srt vs EAC3.mkv），也需要 Stage 3 重命名
+            # 多视频目录下此情况已被 sub_prefix 精确过滤，不会误判
             elif not sub.name.startswith(video_file.stem):
                 dirty_subs.append(sub)
-                
-            # 按文件名简单归类，用于判断是否已有字幕（仅凭文件名，内容纠正交给 Stage 2）
+
+            # 按文件名简单归类，用于判断是否已有字幕
             if ".zh-cn." in name_lower or ".zh-tw." in name_lower or ".zh." in name_lower or _is_chinese_sub_by_name(name_lower):
                 chinese_subs.append(sub)
             elif ".en." in name_lower or ".eng." in name_lower:
@@ -420,17 +429,28 @@ def normalize_subtitles(media_path: str) -> dict:
             continue
             
         directory = nfo_path.parent
-        video_files = [f for f in directory.iterdir()
-                       if f.is_file() and f.suffix.lower() in _VIDEO_EXTS]
-        
+        all_videos_in_dir = [f for f in directory.iterdir()
+                             if f.is_file() and f.suffix.lower() in _VIDEO_EXTS
+                             and f.stat().st_size > 100 * 1024 * 1024]
+        multi_video_dir = len(all_videos_in_dir) > 1
+
+        # 优先找与 NFO 同名的视频，避免多版本目录取错最大文件
         main_video = None
-        main_video_stem = None
-        main_movie_prefix = None
-        if video_files:
-            main_video = max(video_files, key=lambda f: f.stat().st_size)
-            main_video_stem = main_video.stem
-            main_movie_prefix = _get_movie_prefix(main_video_stem)
-            
+        nfo_stem = nfo_path.stem
+        for vf in all_videos_in_dir:
+            if vf.stem == nfo_stem:
+                main_video = vf
+                break
+        if main_video is None and all_videos_in_dir:
+            main_video = max(all_videos_in_dir, key=lambda f: f.stat().st_size)
+
+        main_video_stem = main_video.stem if main_video else None
+        # 多视频目录用精确 stem 匹配；单视频目录用影片名前缀宽松匹配
+        if multi_video_dir:
+            main_sub_prefix = main_video_stem
+        else:
+            main_sub_prefix = _get_movie_prefix(main_video_stem) if main_video_stem else None
+
         sub_files = [f for f in directory.iterdir()
                      if f.is_file() and f.suffix.lower() in _SUB_EXTS]
 
@@ -438,10 +458,10 @@ def normalize_subtitles(media_path: str) -> dict:
         dir_deleted = 0
         dir_renamed = 0
         dir_errors = []
-                     
+
         for sub in sub_files:
-            # 只处理属于该影片的字幕（以"影片名+年份"为前缀）
-            if main_movie_prefix and not sub.name.startswith(main_movie_prefix):
+            # 只处理属于该视频的字幕
+            if main_sub_prefix and not sub.name.startswith(main_sub_prefix):
                 continue
 
             if sub.stat().st_size < 1024:
