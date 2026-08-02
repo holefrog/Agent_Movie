@@ -4,7 +4,8 @@
 translate = "{{ translate_provider | mandatory }}"
 
 [scanner]
-media_paths = {{ media_paths | mandatory | to_json }}
+movie_media_path = "{{ movie_media_path | mandatory }}"
+tvshow_media_path = "{{ tvshow_media_path | mandatory }}"
 video_exts = {{ video_exts | mandatory | to_json }}
 sub_exts = {{ sub_exts | mandatory | to_json }}
 

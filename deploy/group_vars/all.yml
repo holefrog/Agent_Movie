@@ -6,8 +6,8 @@ deploy_user: david
 deploy_dir: /home/david/Programs/Agent_Movie
 
 # --- 扫描路径 ---
-media_paths:
-  - /home/david/NAS_NFS/Media/Video/Movie/
+movie_media_path: /home/david/NAS_NFS/Media/Video/Movie/
+tvshow_media_path: /home/david/NAS_NFS/Media/Video/TV/
 
 # --- 媒体扩展名 ---
 video_exts:
