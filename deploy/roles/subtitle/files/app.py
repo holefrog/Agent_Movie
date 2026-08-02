@@ -405,19 +405,30 @@ def _select_media_type(config: dict) -> list[str]:
 if __name__ == "__main__":
     import threading
     import webbrowser
+    import json
 
     # 初始化 Stage 4 lock 文件路径
     _init_stage4_lock()
-    
+
     # 注册退出清理函数
     atexit.register(_cleanup_stage4_lock)
 
     config = load_config()
 
-    # ── 启动时询问媒体类型（movie / TV show）────────────────────
-    selected_media_paths = _select_media_type(config)
+    # ── 启动时询问媒体类型（movie / TV show）────────────────────────────────
+    # Werkzeug debug reloader 会把进程重启一次（WERKZEUG_RUN_MAIN=true），
+    # 为避免问两次，第一次运行时把选择结果写入环境变量，重启后直接读取。
+    _ENV_KEY = "AGENT_MOVIE_MEDIA_PATHS"
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        # reloader 子进程：从环境变量恢复选择，不再询问
+        _paths_json = os.environ.get(_ENV_KEY, "")
+        selected_media_paths = json.loads(_paths_json) if _paths_json else _get_media_paths()
+    else:
+        # 首次启动：询问用户，并把结果写入环境变量供 reloader 读取
+        selected_media_paths = _select_media_type(config)
+        os.environ[_ENV_KEY] = json.dumps(selected_media_paths)
     app.config["MEDIA_PATHS"] = selected_media_paths
-    # ─────────────────────────────────────────────────────────────
+    # ────────────────────────────────────────────────────────────────────────
 
     host = config["web"]["host"]
     port = config["web"]["port"]
