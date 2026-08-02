@@ -46,7 +46,10 @@ def load_config() -> dict:
         
     # 严格校验必填配置，不 fallback，缺失直接退出
     try:
-        _ = config["scanner"]["media_paths"]
+        scanner_cfg = config["scanner"]
+        # 支持新格式（movie_media_path / tvshow_media_path）和旧格式（media_paths）
+        if "movie_media_path" not in scanner_cfg and "media_paths" not in scanner_cfg:
+            raise KeyError("scanner.movie_media_path 或 scanner.media_paths")
         provider = config["provider"]["translate"]
         _ = config["translate"]["common"]["system_prompt"]
         _ = config["translate"]["common"]["timeout"]
@@ -79,12 +82,25 @@ def movies_page():
     """返回影片列表与管理界面"""
     return render_template("movies.html")
 
+def _get_media_paths() -> list[str]:
+    """从运行时选择（app.config）或 settings.toml 中获取当前媒体路径列表"""
+    # 优先使用启动时用户选择的路径（存储在 Flask app.config 中）
+    if app.config.get("MEDIA_PATHS"):
+        return app.config["MEDIA_PATHS"]
+    # 兜底：读配置文件（兼容旧格式）
+    config = load_config()
+    scanner_cfg = config["scanner"]
+    if "media_paths" in scanner_cfg:
+        return scanner_cfg["media_paths"]
+    # 新格式：默认返回 movie 路径
+    return [scanner_cfg["movie_media_path"]]
+
+
 @app.route("/api/start_scan", methods=["POST"])
 def api_start_scan():
     """触发后台异步全库扫描"""
     import scanner
-    config = load_config()
-    media_paths = config["scanner"]["media_paths"]
+    media_paths = _get_media_paths()
     scanner.start_async_scan(media_paths)
     return jsonify({"success": True})
 
@@ -93,8 +109,7 @@ def _index_content():
     """执行耗时的全库扫描，并返回真正的页面 HTML"""
     import scanner
     try:
-        config = load_config()
-        media_paths = config["scanner"]["media_paths"]
+        media_paths = _get_media_paths()
         all_movies = get_all_movies(media_paths)
         
         # 统计音轨未真正识别的电影（done=False 或 done=True 但 tracks 为空）
@@ -146,7 +161,7 @@ def submit():
     if not selected:
         return jsonify({"error": "未选择任何影片"}), 400
 
-    media_paths = config["scanner"]["media_paths"]
+    media_paths = _get_media_paths()
     all_movies = get_all_movies(media_paths)
 
     selected_set = set(selected)
@@ -183,8 +198,7 @@ def api_stt_status():
 def api_stt_history():
     """获取所有已完成体检的历史影片"""
     import scan_sound_track
-    config = load_config()
-    media_paths = config["scanner"]["media_paths"]
+    media_paths = _get_media_paths()
     data = scan_sound_track.get_all_processed_movies(media_paths)
     return jsonify(data)
 
@@ -192,8 +206,7 @@ def api_stt_history():
 @app.route("/api/page_status")
 def api_page_status():
     """获取当前页面状态（状态机）"""
-    config = load_config()
-    media_paths = config["scanner"]["media_paths"]
+    media_paths = _get_media_paths()
     
     state_machine = StateMachine(media_paths)
     page_state = state_machine.compute_page_state()
@@ -210,8 +223,7 @@ def api_page_status():
 def api_stage3_cleanup():
     """执行 Stage 3：清理并规范化字幕命名"""
     import scanner
-    config = load_config()
-    media_paths = config["scanner"]["media_paths"]
+    media_paths = _get_media_paths()
     
     total_processed = 0
     total_deleted = 0
@@ -250,7 +262,7 @@ def api_stage4_stt():
         
     config = load_config()
     api_key = config["translate"]["groq"]["api_key"]
-    media_paths = config["scanner"]["media_paths"]
+    media_paths = _get_media_paths()
     
     # 创建 lock 文件，标记 Web 进程正在运行
     try:
@@ -281,7 +293,7 @@ def api_stage5_complete():
     if not selected:
         return jsonify({"error": "未选择任何影片"}), 400
 
-    media_paths = config["scanner"]["media_paths"]
+    media_paths = _get_media_paths()
     all_movies = get_all_movies(media_paths)
 
     selected_set = set(selected)
@@ -352,6 +364,44 @@ def _cleanup_stage4_lock():
             logger.warning(f"清理 lock 文件失败: {e}")
 
 
+def _select_media_type(config: dict) -> list[str]:
+    """
+    启动时交互式询问用户选择媒体类型。
+    支持新格式（movie_media_path / tvshow_media_path）和旧格式（media_paths）。
+    返回最终使用的 media_paths 列表。
+    """
+    scanner_cfg = config["scanner"]
+
+    # 旧格式：直接返回，不询问
+    if "media_paths" in scanner_cfg and "movie_media_path" not in scanner_cfg:
+        return scanner_cfg["media_paths"]
+
+    movie_path   = scanner_cfg.get("movie_media_path", "")
+    tvshow_path  = scanner_cfg.get("tvshow_media_path", "")
+
+    print("\n" + "=" * 50)
+    print("  Agent_Movie - 媒体类型选择")
+    print("=" * 50)
+    print(f"  [1] Movie（电影）  →  {movie_path}")
+    print(f"  [2] TV Show（剧集）→  {tvshow_path}")
+    print("=" * 50)
+
+    while True:
+        try:
+            choice = input("请选择 [1/2]（直接回车默认选 1-Movie）: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            choice = ""
+
+        if choice == "" or choice == "1":
+            print(f"✅ 已选择：Movie  →  {movie_path}\n")
+            return [movie_path]
+        elif choice == "2":
+            print(f"✅ 已选择：TV Show  →  {tvshow_path}\n")
+            return [tvshow_path]
+        else:
+            print("  ⚠️  无效输入，请输入 1 或 2")
+
+
 if __name__ == "__main__":
     import threading
     import webbrowser
@@ -363,6 +413,12 @@ if __name__ == "__main__":
     atexit.register(_cleanup_stage4_lock)
 
     config = load_config()
+
+    # ── 启动时询问媒体类型（movie / TV show）────────────────────
+    selected_media_paths = _select_media_type(config)
+    app.config["MEDIA_PATHS"] = selected_media_paths
+    # ─────────────────────────────────────────────────────────────
+
     host = config["web"]["host"]
     port = config["web"]["port"]
 

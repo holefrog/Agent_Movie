@@ -5,7 +5,8 @@
 translate = "groq"  # Options: gemini, openai, mistral, groq, nvidia
 
 [scanner]
-media_paths = ["/path/to/your/movies"]
+movie_media_path = "/path/to/your/movies"
+tvshow_media_path = "/path/to/your/tvshows"
 video_exts = [".mkv", ".mp4", ".avi", ".wmv", ".flv", ".mov", ".ts", ".rmvb"]
 sub_exts = [".srt", ".ass", ".ssa"]
 
