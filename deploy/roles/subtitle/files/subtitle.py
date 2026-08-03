@@ -323,7 +323,7 @@ def translate_subtitle(movie: dict, translate_config: dict) -> str | None:
         return None
 
     provider = translate_config["provider"]
-    logger.info(f"开始翻译 {movie['title']}（{provider}），共 {len(entries)} 条字幕")
+    logger.info(f"开始翻译 {movie['title']}（{provider}），共 {len(entries)} 句对话")
 
     # 分批翻译
     batch_size = translate_config["batch_size"]

@@ -297,7 +297,7 @@ def api_stage5_complete():
     all_movies = get_all_movies(media_paths)
 
     selected_set = set(selected)
-    to_process = [m for m in all_movies if m["directory"] in selected_set]
+    to_process = [m for m in all_movies if m.get("video_path") in selected_set]
 
     results = []
     for i, movie in enumerate(to_process):

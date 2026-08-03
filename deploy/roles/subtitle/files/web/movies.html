@@ -30,7 +30,7 @@
           <option value="no">英文字幕: 无</option>
         </select>
         <label><input type="checkbox" id="selectAll" onchange="toggleAll()"> 全选可用</label>
-        <span class="subtitle-count" style="margin-bottom:0;">共 <span id="moviesCount">0</span> 部影片</span>
+        <span class="subtitle-count" style="margin-bottom:0;">共 <span id="moviesCount">0</span> 个视频</span>
       </div>
 
       <table>
@@ -53,7 +53,7 @@
       <div class="actions" style="margin-top: 1rem;">
         <button id="submitBtn" class="btn btn-primary" onclick="submitSelected()" disabled>下载字幕 (首选中文，次选英文)</button>
         <button class="btn btn-secondary" onclick="cancelAll()">取消</button>
-        <span class="selected-count" id="selectedCount">已选 0 部</span>
+        <span class="selected-count" id="selectedCount">已选 0 个视频</span>
       </div>
 
       <div id="progress" style="margin-top: 1rem; display:none;">
@@ -89,6 +89,7 @@
         if (data.results && data.results.length > 0) {
           allMovies = data.results.map(m => ({
               directory: m.directory,
+              video_path: m.video_path,
               title: m.title,
               year: m.year,
               languages: m.languages,
@@ -177,7 +178,7 @@
       filteredMovies.forEach(m => {
         const tr = document.createElement('tr');
         const disabled = m.is_chinese_audio;
-        const checked = selectedPaths.has(m.directory);
+        const checked = selectedPaths.has(m.video_path);
         
         tr.className = `movie-row ${disabled ? 'disabled' : ''} ${checked ? 'selected' : ''}`;
         
@@ -189,7 +190,7 @@
               const cb = this.querySelector('input[type="checkbox"]');
               cb.checked = !cb.checked;
             }
-            toggleSelection(m.directory, tr.querySelector('input[type="checkbox"]').checked);
+            toggleSelection(m.video_path, tr.querySelector('input[type="checkbox"]').checked);
           };
         }
 
@@ -198,10 +199,10 @@
             <div class="checkbox-title-wrapper">
               <input type="checkbox"
                      class="movie-cb"
-                     value="${m.directory}"
+                     value="${m.video_path}"
                      ${disabled ? 'disabled' : ''}
                      ${checked ? 'checked' : ''}
-                     onclick="event.stopPropagation(); toggleSelection('${m.directory}', this.checked)">
+                     onclick="event.stopPropagation(); toggleSelection('${m.video_path}', this.checked)">
               <span>${m.title}</span>
             </div>
           </td>
@@ -223,17 +224,17 @@
       updateSelectionUI();
     }
 
-    function toggleSelection(directory, isChecked) {
+    function toggleSelection(video_path, isChecked) {
       if (isChecked) {
-        selectedPaths.add(directory);
+        selectedPaths.add(video_path);
       } else {
-        selectedPaths.delete(directory);
+        selectedPaths.delete(video_path);
       }
       // 重新渲染选中样式
       const rows = document.querySelectorAll('.movie-row');
       rows.forEach(row => {
         const cb = row.querySelector('.movie-cb');
-        if (cb && cb.value === directory) {
+        if (cb && cb.value === video_path) {
           if (isChecked) {
             row.classList.add('selected');
           } else {
@@ -265,7 +266,7 @@
       const countSpan = document.getElementById('selectedCount');
       const count = selectedPaths.size;
       
-      countSpan.textContent = `已选 ${count} 部`;
+      countSpan.textContent = `已选 ${count} 个视频`;
       btn.disabled = count === 0;
       
       // 更新全选按钮状态
