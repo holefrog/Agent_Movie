@@ -13,6 +13,7 @@ tvshow_media_path: /home/david/NAS_NFS/Media/Video/TV/
 video_exts:
   - ".mp4"
   - ".mkv"
+  - ".m4v"
   - ".avi"
   - ".wmv"
   - ".flv"
