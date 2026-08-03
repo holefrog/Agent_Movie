@@ -315,11 +315,11 @@ def analyze_track_language(video_path: Path, stream_idx: int, duration: float, a
             lang = "en"
         lang_counts[lang] = lang_counts.get(lang, 0) + 1
 
-    # 如果中文被识别到至少一次，我们就偏向于它是中文发音（因为极少会在纯外文电影里幻觉出长句中文）
-    # 相比之下，中文电影里静音部分极容易幻觉出英语 (如 Oh my god)
-    zh_count = lang_counts.get("zh", 0)
+    # 如果中文被识别到的次数和最高票一样多，或者占多数，才认为是中文
+    # 之前只要有1次中文就判定为中文太激进了，Whisper-v3 经常会在无声/噪音段产生中文幻觉 (如“字幕由xx提供”)
+    max_votes = max(lang_counts.values())
     
-    if zh_count >= 1:
+    if lang_counts.get("zh", 0) == max_votes:
         return "zh"
     
     # 否则取最高票

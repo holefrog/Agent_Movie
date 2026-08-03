@@ -36,6 +36,7 @@
       <table>
         <thead>
           <tr>
+            <th class="sortable" onclick="setSort('showtitle')">剧集名 <span id="sort-showtitle">↕</span></th>
             <th class="sortable" onclick="setSort('title')">标题 <span id="sort-title">↕</span></th>
             <th class="sortable" onclick="setSort('year')" style="white-space: nowrap; width: 60px;">年份 <span id="sort-year">↕</span></th>
             <th class="sortable" onclick="setSort('languages')" style="white-space: nowrap; width: 80px;">语言 <span id="sort-languages">↕</span></th>
@@ -46,7 +47,7 @@
         </thead>
         <tbody id="moviesTable">
           <!-- Movies will be populated here -->
-          <tr><td colspan="6" style="text-align:center;">正在加载数据...</td></tr>
+          <tr><td colspan="7" style="text-align:center;">正在加载数据...</td></tr>
         </tbody>
       </table>
 
@@ -71,7 +72,7 @@
     let filteredMovies = [];
     let selectedPaths = new Set();
     
-    let currentSortField = 'title';
+    let currentSortField = 'showtitle';
     let currentSortOrder = 1; // 1 for asc, -1 for desc
     
     // 页面加载完成后获取数据
@@ -91,6 +92,9 @@
               directory: m.directory,
               video_path: m.video_path,
               title: m.title,
+              showtitle: m.showtitle || '',
+              season: m.season || 0,
+              episode: m.episode || 0,
               year: m.year,
               languages: m.languages,
               has_chinese_sub: m.has_external_chinese_sub || m.has_internal_chinese_sub,
@@ -137,6 +141,20 @@
         if (typeof valA === 'boolean') valA = valA ? 1 : 0;
         if (typeof valB === 'boolean') valB = valB ? 1 : 0;
         
+        if (currentSortField === 'showtitle') {
+           let nameA = valA || a.title;
+           let nameB = valB || b.title;
+           if (nameA < nameB) return -1 * currentSortOrder;
+           if (nameA > nameB) return 1 * currentSortOrder;
+           
+           if (a.season !== b.season) return (a.season - b.season) * currentSortOrder;
+           if (a.episode !== b.episode) return (a.episode - b.episode) * currentSortOrder;
+           
+           if (a.title < b.title) return -1 * currentSortOrder;
+           if (a.title > b.title) return 1 * currentSortOrder;
+           return 0;
+        }
+        
         if (valA < valB) return -1 * currentSortOrder;
         if (valA > valB) return 1 * currentSortOrder;
         return 0;
@@ -171,7 +189,7 @@
       document.getElementById('moviesCount').textContent = filteredMovies.length;
       
       if (filteredMovies.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">没有匹配的影片</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">没有匹配的影片</td></tr>';
         return;
       }
       
@@ -185,7 +203,6 @@
         // 点击整行切换选择
         if (!disabled) {
           tr.onclick = function(e) {
-            // 如果点击的是复选框本身，浏览器已经改变了它的状态，我们需要同步
             if (e.target.tagName !== 'INPUT') {
               const cb = this.querySelector('input[type="checkbox"]');
               cb.checked = !cb.checked;
@@ -194,7 +211,18 @@
           };
         }
 
+        let showText = '-';
+        if (m.showtitle) {
+           showText = m.showtitle;
+           if (m.season > 0 || m.episode > 0) {
+              const s = m.season.toString().padStart(2, '0');
+              const e = m.episode.toString().padStart(2, '0');
+              showText += ` (S${s}E${e})`;
+           }
+        }
+
         tr.innerHTML = `
+          <td>${showText}</td>
           <td class="title-cell">
             <div class="checkbox-title-wrapper">
               <input type="checkbox"

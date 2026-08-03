@@ -244,8 +244,16 @@ def parse_nfo(nfo_path: Path) -> dict | None:
             return None
 
     title = root.findtext("title", "").strip()
+    showtitle = root.findtext("showtitle", "").strip()
     year = root.findtext("year", "").strip()
     languages = root.findtext("languages", "").strip()
+    
+    season_str = root.findtext("season", "").strip()
+    episode_str = root.findtext("episode", "").strip()
+    try: season = int(season_str) if season_str else 0
+    except ValueError: season = 0
+    try: episode = int(episode_str) if episode_str else 0
+    except ValueError: episode = 0
 
     # 提取 IMDB 和 TMDB ID
     imdb_id = ""
@@ -262,6 +270,9 @@ def parse_nfo(nfo_path: Path) -> dict | None:
 
     return {
         "title": title,
+        "showtitle": showtitle,
+        "season": season,
+        "episode": episode,
         "year": year,
         "imdb_id": imdb_id,
         "tmdb_id": tmdb_id,
@@ -404,6 +415,9 @@ def scan_directory(media_path: str) -> list[dict]:
 
         movie_data = {
             "title": nfo_info["title"],
+            "showtitle": nfo_info.get("showtitle", ""),
+            "season": nfo_info.get("season", 0),
+            "episode": nfo_info.get("episode", 0),
             "year": nfo_info["year"],
             "imdb_id": nfo_info["imdb_id"],
             "tmdb_id": nfo_info.get("tmdb_id", ""),
@@ -420,7 +434,13 @@ def scan_directory(media_path: str) -> list[dict]:
         results.append(movie_data)
         scan_status["results"].append(movie_data)
 
-    results.sort(key=lambda x: (-1 if x["is_chinese_audio"] is None else (1 if x["is_chinese_audio"] else 0), x["languages"], x["title"]))
+    results.sort(key=lambda x: (
+        -1 if x["is_chinese_audio"] is None else (1 if x["is_chinese_audio"] else 0),
+        x["showtitle"] or x["title"],
+        x.get("season", 0),
+        x.get("episode", 0),
+        x["title"]
+    ))
     return results
 
 def normalize_subtitles(media_path: str) -> dict:
