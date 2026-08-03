@@ -13,6 +13,12 @@ from metadata_manager import Metadata
 
 logger = logging.getLogger(__name__)
 
+current_translation_status = {
+    "is_translating": False,
+    "movie": "",
+    "batch": 0,
+    "total": 0
+}
 
 # ============================================================
 # 第一条路：从 OpenSubtitles 下载
@@ -324,6 +330,12 @@ def translate_subtitle(movie: dict, translate_config: dict) -> str | None:
 
     provider = translate_config["provider"]
     logger.info(f"开始翻译 {movie['title']}（{provider}），共 {len(entries)} 句对话")
+    
+    global current_translation_status
+    current_translation_status["is_translating"] = True
+    current_translation_status["movie"] = movie['title']
+    current_translation_status["batch"] = 0
+    current_translation_status["total"] = (len(entries) + translate_config["batch_size"] - 1) // translate_config["batch_size"]
 
     # 分批翻译
     batch_size = translate_config["batch_size"]
@@ -333,6 +345,7 @@ def translate_subtitle(movie: dict, translate_config: dict) -> str | None:
         batch_num = start // batch_size + 1
         total_batches = (len(entries) + batch_size - 1) // batch_size
 
+        current_translation_status["batch"] = batch_num
         logger.info(f"  翻译第 {batch_num}/{total_batches} 批...")
 
         try:
@@ -341,6 +354,7 @@ def translate_subtitle(movie: dict, translate_config: dict) -> str | None:
                 entries[start + i]["content"] = trans
         except Exception as e:
             logger.error(f"  第 {batch_num} 批翻译失败: {e}")
+            current_translation_status["is_translating"] = False
             return None
 
         # 批次间等待，避免限速
@@ -352,9 +366,23 @@ def translate_subtitle(movie: dict, translate_config: dict) -> str | None:
     save_name = video_path.stem + ".zh-CN.srt"
     save_path = video_path.parent / save_name
 
+    # 增加 AI 翻译来源提示
+    for e in entries:
+        try:
+            e["index"] = str(int(e["index"]) + 1)
+        except ValueError:
+            pass
+            
+    entries.insert(0, {
+        "index": "1",
+        "timestamp": "00:00:00,000 --> 00:00:05,000",
+        "content": f"这是由AI：{provider}翻译的字幕"
+    })
+
     srt_text = _build_srt(entries)
     save_path.write_text(srt_text, encoding="utf-8")
     logger.info(f"翻译完成: {save_path}")
+    current_translation_status["is_translating"] = False
     return str(save_path)
 
 

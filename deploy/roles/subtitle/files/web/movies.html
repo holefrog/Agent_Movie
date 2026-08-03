@@ -306,6 +306,16 @@
         document.getElementById('progressBar').style.width = `${percent}%`;
         document.getElementById('progressText').textContent = `正在处理: ${i + 1}/${paths.length} ...`;
         
+        let poll = setInterval(async () => {
+          try {
+            const tr_res = await fetch('/api/translation_progress');
+            const prog = await tr_res.json();
+            if (prog.is_translating) {
+              document.getElementById('progressText').textContent = `正在处理: ${i + 1}/${paths.length} [翻译进度: 第 ${prog.batch}/${prog.total} 批]`;
+            }
+          } catch(e) {}
+        }, 2000);
+
         try {
           const res = await fetch('/api/stage5_complete', {
             method: 'POST',
@@ -313,16 +323,28 @@
             body: JSON.stringify({ selected: [path] })
           });
           const data = await res.json();
+          clearInterval(poll);
           
           if (data.results && data.results.length > 0) {
              const item = data.results[0];
              const li = document.createElement('li');
-             li.textContent = `${item.title}: ${item.success ? '成功 (' + item.method + ')' : '失败 (' + item.error + ')'}`;
+             
+             let statusText = '';
+             if (item.success) {
+                 statusText = `成功 (${item.method})`;
+             } else if (item.method === 'skipped' || item.method === 'none') {
+                 statusText = `跳过 (${item.error})`;
+             } else {
+                 statusText = `失败 (${item.error})`;
+             }
+             
+             li.textContent = `${item.title}: ${statusText}`;
              ul.appendChild(li);
-             if(item.success || item.method === 'skipped') successCount++;
+             if(item.success || item.method === 'skipped' || item.method === 'none') successCount++;
              else failCount++;
           }
         } catch (err) {
+          clearInterval(poll);
           const li = document.createElement('li');
           li.textContent = `[网络错误] 无法处理该视频`;
           ul.appendChild(li);

@@ -280,6 +280,11 @@ def api_stage4_stt():
     
     return jsonify({"success": True})
 
+@app.route("/api/translation_progress", methods=["GET"])
+def api_translation_progress():
+    from subtitle import current_translation_status
+    return jsonify(current_translation_status)
+
 
 @app.route("/api/stage5_complete", methods=["POST"])
 def api_stage5_complete():
