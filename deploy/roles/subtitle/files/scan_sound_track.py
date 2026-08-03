@@ -252,9 +252,17 @@ def detect_language_via_groq(audio_path: Path, api_key: str) -> str:
             return "unknown"
             
         lower_text = text.lower()
-        hallucinations = ["thank you", "thanks for watching", "oh, my god", "subscribe", "amara.org", "¶"]
+        hallucinations = ["thank you", "thanks for watching", "oh, my god", "subscribe", "amara.org", "¶", "dzięki", "subs by", "translated by", "字幕", "观看", "感谢"]
         if any(h in lower_text for h in hallucinations):
             return "unknown"
+            
+        # 检查是否是严重的重复词语幻觉 (如: 我会在你身边的一个人的身边...)
+        # 汉字按照字符算，英文按照单词算。简单起见，按长度过滤极度重复的模式。
+        if len(text) > 20:
+            # 简单的压缩率检测，如果被 zlib 压缩后极小，说明高度重复
+            import zlib
+            if len(zlib.compress(text.encode('utf-8'))) < len(text.encode('utf-8')) * 0.4:
+                return "unknown"
             
         return resp_json.get("language", "unknown").lower()
     except Exception as e:
@@ -315,14 +323,19 @@ def analyze_track_language(video_path: Path, stream_idx: int, duration: float, a
             lang = "en"
         lang_counts[lang] = lang_counts.get(lang, 0) + 1
 
-    # 如果中文被识别到的次数和最高票一样多，或者占多数，才认为是中文
-    # 之前只要有1次中文就判定为中文太激进了，Whisper-v3 经常会在无声/噪音段产生中文幻觉 (如“字幕由xx提供”)
     max_votes = max(lang_counts.values())
     
-    if lang_counts.get("zh", 0) == max_votes:
+    # 只有当中文是被识别次数最多的，并且至少有2次（或者没有其他语言），才认为是中文
+    # 彻底杜绝 1:1 甚至 1:1:1 平局时被意外幻觉成中文
+    zh_votes = lang_counts.get("zh", 0)
+    if zh_votes == max_votes and (zh_votes >= 2 or len(lang_counts) == 1):
         return "zh"
+        
+    # 如果平局且 max_votes == 1，说明极其混乱，直接取第一个检测到的非 unknown 语言
+    if max_votes == 1:
+        return detected_langs[0]
     
-    # 否则取最高票
+    # 否则取最高票 (对于 Python max，平局会返回第一个遇到的 key)
     return max(lang_counts, key=lang_counts.get)
 
 def build_language_nfo_for_video(video_path: Path, api_key: str, lock_file: str = None) -> dict:

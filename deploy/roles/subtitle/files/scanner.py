@@ -268,6 +268,28 @@ def parse_nfo(nfo_path: Path) -> dict | None:
     if not title:
         return None
 
+    # 如果 NFO 里的 title 是 "Show - S01E01 - Title" 格式，尝试拆分
+    match = re.search(r"^(.*?)\s+-\s+S(\d+)E(\d+)\s+-\s+(.*)$", title, re.IGNORECASE)
+    if match:
+        if not showtitle:
+            showtitle = match.group(1).strip()
+        if season == 0:
+            season = int(match.group(2))
+        if episode == 0:
+            episode = int(match.group(3))
+        # 清理 title，只保留单集名称
+        title = match.group(4).strip()
+        
+    # 如果 showtitle 依然为空，尝试从文件名提取
+    if not showtitle:
+        match_file = re.search(r"^(.*?)\s+-\s+S(\d+)E(\d+)", nfo_path.stem, re.IGNORECASE)
+        if match_file:
+            showtitle = match_file.group(1).strip()
+            if season == 0:
+                season = int(match_file.group(2))
+            if episode == 0:
+                episode = int(match_file.group(3))
+
     return {
         "title": title,
         "showtitle": showtitle,

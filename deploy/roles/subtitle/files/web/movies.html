@@ -330,16 +330,33 @@
 
       for (let i = 0; i < paths.length; i++) {
         const path = paths[i];
+        
+        let displayName = path;
+        const movie = allMovies.find(m => m.video_path === path);
+        if (movie) {
+           if (movie.showtitle) {
+               displayName = movie.showtitle;
+               if (movie.season > 0 || movie.episode > 0) {
+                   const s = movie.season.toString().padStart(2, '0');
+                   const e = movie.episode.toString().padStart(2, '0');
+                   displayName += ` S${s}E${e}`;
+               }
+               displayName += ` - ${movie.title}`;
+           } else {
+               displayName = movie.title;
+           }
+        }
+
         const percent = (i / paths.length) * 100;
         document.getElementById('progressBar').style.width = `${percent}%`;
-        document.getElementById('progressText').textContent = `正在处理: ${i + 1}/${paths.length} ...`;
+        document.getElementById('progressText').textContent = `正在处理: ${i + 1}/${paths.length} [${displayName}] ...`;
         
         let poll = setInterval(async () => {
           try {
             const tr_res = await fetch('/api/translation_progress');
             const prog = await tr_res.json();
             if (prog.is_translating) {
-              document.getElementById('progressText').textContent = `正在处理: ${i + 1}/${paths.length} [翻译进度: 第 ${prog.batch}/${prog.total} 批]`;
+              document.getElementById('progressText').textContent = `正在处理: ${i + 1}/${paths.length} [${displayName}] [翻译进度: 第 ${prog.batch}/${prog.total} 批]`;
             }
           } catch(e) {}
         }, 2000);
@@ -366,7 +383,7 @@
                  statusText = `失败 (${item.error})`;
              }
              
-             li.textContent = `${item.title}: ${statusText}`;
+             li.textContent = `${displayName}: ${statusText}`;
              ul.appendChild(li);
              if(item.success || item.method === 'skipped' || item.method === 'none') successCount++;
              else failCount++;
