@@ -229,8 +229,19 @@ def parse_nfo(nfo_path: Path) -> dict | None:
         tree = ET.parse(nfo_path)
         root = tree.getroot()
     except ET.ParseError as e:
-        logger.warning(f"NFO 解析失败 {nfo_path}: {e}")
-        return None
+        # Fallback for NFOs with multiple root elements (e.g. multi-episode NFOs)
+        try:
+            content = nfo_path.read_text(encoding="utf-8", errors="ignore")
+            content = re.sub(r'<\?xml[^>]*\?>', '', content)
+            wrapped_root = ET.fromstring(f"<wrapper>{content}</wrapper>")
+            if len(wrapped_root) > 0:
+                root = wrapped_root[0]
+            else:
+                logger.warning(f"NFO 解析失败 {nfo_path}: {e}")
+                return None
+        except Exception as e2:
+            logger.warning(f"NFO 解析失败 {nfo_path}: {e} (Fallback: {e2})")
+            return None
 
     title = root.findtext("title", "").strip()
     year = root.findtext("year", "").strip()

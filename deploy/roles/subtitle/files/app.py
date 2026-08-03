@@ -286,7 +286,7 @@ def api_stage5_complete():
     """执行 Stage 5：字幕补全（下载+翻译）"""
     config = load_config()
     os_config = config["opensubtitles"]
-    translate_config = config["translate"][config["provider"]["translate"]]
+    translate_config = {**config["translate"].get("common", {}), **config["translate"][config["provider"]["translate"]]}
     translate_config["provider"] = config["provider"]["translate"]
     
     selected = request.json.get("selected", [])
