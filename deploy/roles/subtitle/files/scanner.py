@@ -525,6 +525,9 @@ def normalize_subtitles(media_path: str) -> dict:
                     pass
                 continue
                 
+            # 无论文件名是否完全合规，强制检查并修正字幕编码
+            normalize_subtitle_encoding_to_utf8(sub)
+            
             name_lower = sub.name.lower()
             if any(tag in name_lower for tag in [".zh-cn.", ".zh-tw.", ".zh.", ".en.", ".eng."]):
                 # 已有语言标签：只有文件名与视频完整 stem 完全一致时才视为合规，跳过
@@ -534,9 +537,8 @@ def normalize_subtitles(media_path: str) -> dict:
                 
             # 执行重命名
             detected = detect_subtitle_language(sub)
-            if detected in ("zh-CN", "zh-TW"):
-                normalize_subtitle_encoding_to_utf8(sub)
                 
+
             try:
                 new_path = rename_subtitle(sub, detected, base_stem=main_video_stem)
                 if new_path.name != sub.name:
