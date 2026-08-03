@@ -293,42 +293,47 @@
       const btn = document.getElementById('submitBtn');
       btn.disabled = true;
       document.getElementById('progress').style.display = 'block';
-      document.getElementById('results').innerHTML = '';
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = '<h4>下载结果:</h4><ul class="result-list" id="resultList"></ul>';
+      const ul = document.getElementById('resultList');
       
-      try {
-        const res = await fetch('/api/stage5_complete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ selected: paths })
-        });
-        const data = await res.json();
+      let successCount = 0;
+      let failCount = 0;
+
+      for (let i = 0; i < paths.length; i++) {
+        const path = paths[i];
+        const percent = (i / paths.length) * 100;
+        document.getElementById('progressBar').style.width = `${percent}%`;
+        document.getElementById('progressText').textContent = `正在处理: ${i + 1}/${paths.length} ...`;
         
-        if (data.results) {
-          // 隐藏进度条，直接展示结果
-          document.getElementById('progress').style.display = 'none';
-          document.getElementById('progressBar').style.width = '100%';
-          document.getElementById('progressText').textContent = '下载完成！';
-          
-          // 展示结果
-          const resultsDiv = document.getElementById('results');
-          resultsDiv.innerHTML = '<h4>下载结果:</h4><ul class="result-list"></ul>';
-          const ul = resultsDiv.querySelector('ul');
-          data.results.forEach(item => {
-            const li = document.createElement('li');
-            li.textContent = `${item.title}: ${item.success ? '成功 (' + item.method + ')' : '失败 (' + item.error + ')'}`;
-            ul.appendChild(li);
+        try {
+          const res = await fetch('/api/stage5_complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ selected: [path] })
           });
+          const data = await res.json();
           
-          // 重新刷新列表数据
-          fetchMovies();
-        } else {
-          alert("提交下载任务失败: " + (data.error || "未知错误"));
-          btn.disabled = false;
+          if (data.results && data.results.length > 0) {
+             const item = data.results[0];
+             const li = document.createElement('li');
+             li.textContent = `${item.title}: ${item.success ? '成功 (' + item.method + ')' : '失败 (' + item.error + ')'}`;
+             ul.appendChild(li);
+             if(item.success || item.method === 'skipped') successCount++;
+             else failCount++;
+          }
+        } catch (err) {
+          const li = document.createElement('li');
+          li.textContent = `[网络错误] 无法处理该视频`;
+          ul.appendChild(li);
+          failCount++;
         }
-      } catch (err) {
-        alert("网络请求失败: " + err);
-        btn.disabled = false;
       }
+
+      document.getElementById('progressBar').style.width = '100%';
+      document.getElementById('progressText').textContent = `全部完成！成功/跳过: ${successCount}, 失败: ${failCount}`;
+      fetchMovies();
+      btn.disabled = false;
     }
 
     function startDownloadProgress() {

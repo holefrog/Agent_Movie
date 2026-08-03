@@ -372,6 +372,10 @@ def get_missing_subtitle(movie: dict, os_config: dict, translate_config: dict = 
         audio_info = metadata.get_audio_tracks()
         if audio_info.get("is_chinese_audio"):
             return {"success": False, "method": "skipped", "path": "", "error": "中文音频，无需字幕"}
+
+    # 检查是否已有中文字幕
+    if movie.get("has_external_chinese_sub") or movie.get("has_internal_chinese_sub"):
+        return {"success": False, "method": "skipped", "path": "", "error": "已有中文字幕，跳过"}
     
     # 第一步：尝试从 OpenSubtitles 下载中文字幕
     result = download_subtitle(movie, os_config, "zh-cn,zh-tw", ".zh-CN.srt")
