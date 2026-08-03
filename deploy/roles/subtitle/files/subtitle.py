@@ -418,6 +418,18 @@ def get_missing_subtitle(movie: dict, os_config: dict, translate_config: dict = 
         return {"success": True, "method": "download_zh", "path": result, "error": ""}
 
     if movie.get("has_english_sub"):
+        if translate_config and movie.get("english_sub_path"):
+            translate_result = translate_subtitle(movie, translate_config)
+            if translate_result:
+                metadata.set_subtitle_completion(
+                    method="translated_local",
+                    translator=translate_config["provider"],
+                    chinese_subtitle=Path(translate_result).name,
+                    sync_offset=0.0,
+                    mismatch_detected=False
+                )
+                return {"success": True, "method": "translated_local", "path": translate_result, "error": ""}
+        
         metadata.set_subtitle_completion(
             method="existed",
             translator="",
@@ -425,7 +437,7 @@ def get_missing_subtitle(movie: dict, os_config: dict, translate_config: dict = 
             sync_offset=0.0,
             mismatch_detected=False
         )
-        return {"success": False, "method": "none", "path": "", "error": "无中字，但本地已有英字，跳过下载"}
+        return {"success": False, "method": "none", "path": "", "error": "无中字，本地有英字但未配置翻译，跳过"}
 
     # 第二步：尝试下载英文字幕
     result = download_subtitle(movie, os_config, "en", ".en.srt")
