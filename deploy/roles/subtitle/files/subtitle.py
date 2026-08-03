@@ -19,9 +19,12 @@ logger = logging.getLogger(__name__)
 # ============================================================
 
 _ost_client = None
+_ost_init_failed = False
 
 def get_ost_client(os_config: dict):
-    global _ost_client
+    global _ost_client, _ost_init_failed
+    if _ost_init_failed:
+        return None
     if _ost_client is not None:
         return _ost_client
 
@@ -56,6 +59,7 @@ def get_ost_client(os_config: dict):
         except Exception as e:
             logger.error(f"OpenSubtitles 登录彻底失败: {e}")
             _ost_client = None
+            _ost_init_failed = True
             return None
 
     return _ost_client
