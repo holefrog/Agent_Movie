@@ -242,7 +242,7 @@ def api_stage3_cleanup():
     if all_errors:
         return jsonify({
             "success": False,
-            "error": "重命名过程发现冲突（目标文件已存在），请手动介入处理：<br>" + "<br>".join(all_errors)
+            "error": "字幕重命名或备份时发现冲突，请手动处理：<br>" + "<br>".join(all_errors)
         })
         
     return jsonify({

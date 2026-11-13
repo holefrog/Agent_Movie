@@ -212,7 +212,16 @@ def rename_subtitle(filepath: Path, detected_lang: str, base_stem: str = None) -
 
     if new_path.exists():
         if filepath.resolve() != new_path.resolve(): # Windows 等大小写不敏感的文件系统处理
-            raise FileExistsError(f"冲突: 试图将 '{filepath.name}' 重命名为 '{new_name}' 时失败，该目标文件已存在，请手动排查或删除多余字幕。")
+            backup_path = new_path.with_name(new_path.name + ".sav")
+            os.replace(new_path, backup_path)
+            try:
+                filepath.rename(new_path)
+            except OSError:
+                os.replace(backup_path, new_path)
+                raise
+            logger.info(f"保留原目标字幕: {new_name} → {backup_path.name}")
+            logger.info(f"字幕按内容强制重命名: {filepath.name} → {new_name}")
+            return new_path
         return filepath
 
     filepath.rename(new_path)
@@ -513,6 +522,10 @@ def normalize_subtitles(media_path: str) -> dict:
         dir_errors = []
 
         for sub in sub_files:
+            # 目标文件若已被此前的重命名操作移至 .sav，此路径已不存在。
+            if not sub.exists():
+                continue
+
             # 只处理属于该视频的字幕
             if main_sub_prefix and not sub.name.startswith(main_sub_prefix):
                 continue
