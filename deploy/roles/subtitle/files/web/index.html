@@ -17,7 +17,7 @@
     <!-- 6阶段架构状态显示 -->
     <div id="stageContainer">
       <div class="stage-card" id="stage0Card">
-        <h3>Stage 0: 检索目录</h3>
+        <h3>Stage 0: 检索目录（收集媒体文件位置，为后续扫描做准备）</h3>
         <p id="stage0Status">等待中...</p>
         <div id="stage0Progress" style="display:none; margin-top:1rem;">
           <div class="loading-progress-bar-bg">
@@ -27,7 +27,7 @@
         </div>
       </div>
       <div class="stage-card" id="stage1Card">
-        <h3>Stage 1: 媒体库扫描</h3>
+        <h3>Stage 1: 媒体库扫描（识别影片并关联标题等元数据）</h3>
         <p id="stage1Status">扫描中...</p>
         <div id="stage1Progress" style="display:none; margin-top:1rem;">
           <div class="loading-progress-bar-bg">
@@ -37,7 +37,7 @@
         </div>
       </div>
       <div class="stage-card" id="stage2Card">
-        <h3>Stage 2: 字幕评估</h3>
+        <h3>Stage 2: 字幕评估（检查字幕语言、编码和命名，找出需要清洗或补全的影片）</h3>
         <p id="stage2Status">等待中...</p>
         <div id="stage2Progress" style="display:none; margin-top:1rem;">
           <div class="loading-progress-bar-bg">
@@ -47,13 +47,13 @@
         </div>
       </div>
       <div class="stage-card" id="stage3Card">
-        <h3>Stage 3: 字幕清洗</h3>
+        <h3>Stage 3: 字幕清洗（清除无效字幕并统一编码与命名，确保字幕能被正确识别和匹配）</h3>
         <p>目的：清理无效字幕、统一编码和命名，让系统能准确识别字幕语言并关联到对应影片，供后续字幕补全与播放使用。若重命名时目标文件已存在，会先将原目标保留为「目标文件名.sav」，不会直接覆盖。</p>
         <p id="stage3Status">等待中...</p>
         <button id="btnStage3" class="btn btn-primary" onclick="triggerStage3()" style="display:none;">🧹 清洗字幕</button>
       </div>
       <div class="stage-card" id="stage4Card">
-        <h3>Stage 4: 内置字幕与音轨扫描</h3>
+        <h3>Stage 4: 内置字幕与音轨扫描（确认影片原声语言和内置中文字幕，判断是否需要补充字幕）</h3>
         <p id="stage4Status">等待中...</p>
         <button id="btnStage4Start" class="btn btn-primary" onclick="triggerStage4()" style="display:none;">🎵 开始深度扫描</button>
         <button id="btnStage4Stop" class="btn btn-danger" onclick="stopStage4()" style="display:none;">⏹ 中止</button>
@@ -65,7 +65,7 @@
         </div>
       </div>
       <div class="stage-card" id="stage5Card">
-        <h3>Stage 5: 字幕补全</h3>
+        <h3>Stage 5: 字幕补全（为需要中文字幕的影片下载字幕，或用英文字幕翻译补齐）</h3>
         <p id="stage5Status">等待中...</p>
         <button id="btnStage5" class="btn btn-primary" onclick="window.open('/movies', '_blank')" style="display:none;">📥 前往影片列表管理</button>
       </div>
