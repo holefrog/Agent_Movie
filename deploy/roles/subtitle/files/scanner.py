@@ -215,7 +215,7 @@ def rename_subtitle(filepath: Path, detected_lang: str, base_stem: str = None) -
             backup_path = new_path.with_name(new_path.name + ".sav")
             os.replace(new_path, backup_path)
             try:
-                filepath.rename(new_path)
+                os.replace(filepath, new_path)
             except OSError:
                 os.replace(backup_path, new_path)
                 raise
@@ -224,7 +224,7 @@ def rename_subtitle(filepath: Path, detected_lang: str, base_stem: str = None) -
             return new_path
         return filepath
 
-    filepath.rename(new_path)
+    os.replace(filepath, new_path)
     logger.info(f"字幕按内容强制重命名: {filepath.name} → {new_name}")
     return new_path
 
