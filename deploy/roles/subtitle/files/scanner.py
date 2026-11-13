@@ -182,6 +182,8 @@ def normalize_subtitle_encoding_to_utf8(filepath: Path) -> None:
         text = raw_bytes.decode("utf-8", errors="ignore")
         filepath.write_bytes(text.encode("utf-8"))
         logger.info(f"强制转换字幕编码为 UTF-8: {filepath.name}")
+    except OSError:
+        raise
     except Exception as e:
         logger.warning(f"字幕编码统一转换失败 {filepath}: {e}")
 
@@ -535,13 +537,10 @@ def normalize_subtitles(media_path: str) -> dict:
                     sub.unlink()
                     dir_deleted += 1
                 except OSError as e:
-                    dir_errors.append(
-                        f"[{directory.name}] 删除字幕 '{sub.name}' 失败: {e}"
-                    )
+                    error = f"[{directory.name}] 删除字幕 '{sub.name}' 失败: {e}"
+                    logger.error(error)
+                    dir_errors.append(error)
                 continue
-                
-            # 无论文件名是否完全合规，强制检查并修正字幕编码
-            normalize_subtitle_encoding_to_utf8(sub)
             
             name_lower = sub.name.lower()
             if any(tag in name_lower for tag in [".zh-cn.", ".zh-tw.", ".zh.", ".en.", ".eng."]):
@@ -551,10 +550,11 @@ def normalize_subtitles(media_path: str) -> dict:
                     continue  # 完全合规，跳过
                 
             # 执行重命名
-            detected = detect_subtitle_language(sub)
-                
-
+            detected = "unknown"
             try:
+                # 无论文件名是否完全合规，强制检查并修正字幕编码
+                normalize_subtitle_encoding_to_utf8(sub)
+                detected = detect_subtitle_language(sub)
                 new_path = rename_subtitle(sub, detected, base_stem=main_video_stem)
                 if new_path.name != sub.name:
                     dir_renamed += 1
@@ -566,8 +566,10 @@ def normalize_subtitles(media_path: str) -> dict:
                     else sub.name
                 )
                 error = (
-                    f"[{directory.name}] 重命名字幕 '{sub.name}' 为 "
-                    f"'{target_name}' 失败: {e}"
+                    f"[{directory.name}] 处理字幕 '{sub.name}'"
+                    + (f"（目标名称 '{target_name}'）" if target_name != sub.name else "")
+                    + "失败: "
+                    f"{e}"
                 )
                 logger.error(error)
                 dir_errors.append(error)
