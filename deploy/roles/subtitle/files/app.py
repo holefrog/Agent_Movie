@@ -240,9 +240,17 @@ def api_stage3_cleanup():
         total_renamed += res.get("renamed_count", 0)
             
     if all_errors:
+        error_details = "\n".join(all_errors[:10])
+        remaining_count = len(all_errors) - min(len(all_errors), 10)
+        if remaining_count:
+            error_details += f"\n另有 {remaining_count} 项失败，完整详情请查看 app.log。"
         return jsonify({
             "success": False,
-            "error": "字幕重命名或备份时发现冲突，请手动处理：<br>" + "<br>".join(all_errors)
+            "error": (
+                f"有 {len(all_errors)} 项字幕文件操作失败。"
+                "请根据具体错误检查 NAS 权限、连接状态或文件占用；"
+                f"修复后可重新点击清洗字幕。\n{error_details}"
+            )
         })
         
     return jsonify({

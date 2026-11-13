@@ -211,7 +211,11 @@ class StateMachine:
         
         # Stage 3错误处理
         if stats["stage3_error"] > 0:
-            return 3, True, f"有 {stats['stage3_error']} 部影片清洗失败，请手动处理" + warning_msg
+            return 3, True, (
+                f"有 {stats['stage3_error']} 部影片上次清洗失败；"
+                "可点击“清洗字幕”重试，仍失败时请查看具体错误"
+                + warning_msg
+            )
         
         # Stage 4: 如果未识别音轨，显示Stage 4
         if stats["not_identified"] > 0:

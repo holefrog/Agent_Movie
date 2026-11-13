@@ -534,8 +534,10 @@ def normalize_subtitles(media_path: str) -> dict:
                 try:
                     sub.unlink()
                     dir_deleted += 1
-                except OSError:
-                    pass
+                except OSError as e:
+                    dir_errors.append(
+                        f"[{directory.name}] 删除字幕 '{sub.name}' 失败: {e}"
+                    )
                 continue
                 
             # 无论文件名是否完全合规，强制检查并修正字幕编码
@@ -556,8 +558,19 @@ def normalize_subtitles(media_path: str) -> dict:
                 new_path = rename_subtitle(sub, detected, base_stem=main_video_stem)
                 if new_path.name != sub.name:
                     dir_renamed += 1
-            except FileExistsError as e:
-                dir_errors.append(f"[{directory.name}] {str(e)}")
+            except OSError as e:
+                clean_stem = main_video_stem or sub.stem
+                target_name = (
+                    f"{clean_stem}.{detected}{sub.suffix}"
+                    if detected in ("zh-CN", "zh-TW", "en")
+                    else sub.name
+                )
+                error = (
+                    f"[{directory.name}] 重命名字幕 '{sub.name}' 为 "
+                    f"'{target_name}' 失败: {e}"
+                )
+                logger.error(error)
+                dir_errors.append(error)
                 
         processed_count += 1
         total_deleted += dir_deleted
@@ -568,9 +581,10 @@ def normalize_subtitles(media_path: str) -> dict:
         # set_subtitles_cleanup 内部会同时重置 has_garbage=False
         if main_video:
             metadata = Metadata(main_video)
-            metadata.set_subtitles_cleanup(dir_deleted, dir_renamed)
-            if dir_errors:
-                metadata.set_error(3, "; ".join(dir_errors))
+            metadata.set_subtitles_cleanup(
+                dir_deleted, dir_renamed,
+                error="; ".join(dir_errors) if dir_errors else None
+            )
         
     return {
         "success": len(errors) == 0,
